@@ -15,10 +15,10 @@ def receive_msg():
             #print(type(msg))
             msg_json = json.loads(msg)
 
-            if msg_json['action'] == 'confirm_name':
+            if msg_json['net_action'] == 'confirm_name':
                 print('Name: {}'.format(msg_json['name']))
                 #print(type(msg_json))
-            elif msg_json['action'] == 'confirm_list':
+            elif msg_json['net_action'] == 'confirm_list':
                 BCNETWORKNUM = msg_json['real_clients_num']
                 BCNETWORKNODES = msg_json['real_clients_name']
 
@@ -38,7 +38,7 @@ def send_msg(payload):
 
     try:
         #if msg != 'exit()':
-        if payload['action'] != 'exit()':
+        if payload['net_action'] != 'exit()':
             msg = json.dumps(payload)
             client_socket.send(msg.encode('utf8'))
         else:
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     receive_thread.start()
 
     # set name 
-    PAYLOAD['action'] = 'name()'
+    PAYLOAD['net_action'] = 'name()'
     send_msg(PAYLOAD)
 
 #    if ACTION == 'CertReq':

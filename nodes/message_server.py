@@ -27,39 +27,52 @@ def single_client(client):
         #print(msg_json)
         #print(type(msg_json))
 
-        if msg_json['action'] == 'online()':            
+        if msg_json['net_action'] == 'online()':            
             real_clients_num, real_clients_name = get_clients()
+
             payload = {
-                'action': 'confirm_list',
+                'net_action': 'confirm_list',
                 'real_clients_num': real_clients_num,
                 'real_clients_name': real_clients_name 
             }
             #client.send(f'Online users {real_clients_num} : {real_clients_name}'.encode('utf8'))
             unicast_msg(payload, client)
         #elif msg_json['action'] == 'name()'.encode('utf8'): 
-        elif msg_json['action'] == 'name()': 
+        elif msg_json['net_action'] == 'name()': 
             new_client_name = msg_json['name']
             clients[client] = new_client_name
+
             payload = {
-                'action': 'confirm_name',
+                'net_action': 'confirm_name',
                 'name': new_client_name
             }
             #print('test point')
             #print(clients)
+            print('client for unicast message: {}'.format(client))
             unicast_msg(payload, client)
             
-        elif msg_json['action'] == 'exit()':
+        elif msg_json['net_action'] == 'exit()':
             print(f'{clients[client]} has disconnected ')
-            client.send('You are leaving the room...'.encode())
+            #client.send('You are leaving the room...'.encode())
             client.close()
             client_leaving = clients[client]
             del clients[client]
-            broadcast_msg(f'{client_leaving} has left the room!'.encode())
+
+            payload = {
+                'net_action': 'confirm_exit',
+                'client_leaving': client_leaving
+            }
+            #broadcast_msg(f'{client_leaving} has left the room!'.encode())
+            broadcast_msg(payload)
             break
-        elif '@'.encode('utf8') in msg:
-            unicast_msg(msg, client)
-        else:
-            broadcast_msg(msg)
+
+        elif msg_json['net_action'] == 'unicast()':
+            msg_json['net_action']
+            destination = msg_json['destination']
+            unicast_msg(msg_json, clients[destination])
+
+        elif msg_json['net_action'] == 'broadcast()':
+            broadcast_msg(msg_json)
 
         #if msg == 'online()'.encode('utf8'):            
         #    real_clients_num, real_clients_name = get_clients()
