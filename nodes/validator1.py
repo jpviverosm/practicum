@@ -9,6 +9,8 @@ import time
 def receive_msg():
     while True:
     #while not EXIT:
+        if EXIT:
+            break
         try:
             msg = client_socket.recv(BUFFERSIZE)
             msg_json = json.loads(msg)
