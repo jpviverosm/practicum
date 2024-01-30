@@ -1,6 +1,7 @@
 from socket import AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, socket
 from threading import Thread
 import json
+import time
 
 def incomming_connections():
 
@@ -8,115 +9,104 @@ def incomming_connections():
 
         client, addr = SERVER.accept()
         print(f'A client has connected {addr}')
-        Thread(target=single_client, args=(client,)).start()
+        #Thread(target=single_client, args=(client,)).start()
+        Thread(target=single_client, args=(client,addr)).start()
 
-def single_client(client):
+def single_client(client,addr):
 
-    client_name = 'Anonymous'
-    #welcome_msg = f'Welcome {client_name}.\nType exit() or press CTRL+D or CTRL+C to exit.\nType name() <your-name>, e.g. name() jraychev.'
-    #client.send(welcome_msg.encode())
-    chat_msg = f'{client_name} has joined the room'
-    #broadcast_msg(chat_msg.encode())
-    clients[client] = client_name
+    #client_name = 'Anonymous'
+    #clients[client] = client_name
+
+    clients[addr] = client
+
+    #clients[client_name] = client
 
     while True:
         msg = client.recv(BUFFERSIZE)
-        #print(msg)
-        #print(type(msg))
         msg_json = json.loads(msg)
-        #print(msg_json)
-        #print(type(msg_json))
 
         if msg_json['net_action'] == 'online()':            
             real_clients_num, real_clients_name = get_clients()
+
+            #real_clients_name, real_clients_num = get_clients()
 
             payload = {
                 'net_action': 'confirm_list',
                 'real_clients_num': real_clients_num,
                 'real_clients_name': real_clients_name 
             }
-            #client.send(f'Online users {real_clients_num} : {real_clients_name}'.encode('utf8'))
+
             unicast_msg(payload, client)
-        #elif msg_json['action'] == 'name()'.encode('utf8'): 
+
         elif msg_json['net_action'] == 'name()': 
             new_client_name = msg_json['name']
-            clients[client] = new_client_name
+            #clients[client] = new_client_name
+
+            clients[new_client_name] = clients.pop(addr)
+            print("Nodes: {}".format(clients))
 
             payload = {
                 'net_action': 'confirm_name',
                 'name': new_client_name
             }
-            #print('test point')
-            #print(clients)
-            print('client for unicast message: {}'.format(client))
+
+            #print('client for unicast message: {}'.format(client))
             unicast_msg(payload, client)
+
+            time.sleep(1)
+
+            payload_b = {
+                'net_action': 'new_node',
+                'client_name': new_client_name
+            }
+
+            broadcast_msg(payload_b)
             
         elif msg_json['net_action'] == 'exit()':
-            print(f'{clients[client]} has disconnected ')
-            #client.send('You are leaving the room...'.encode())
+            client_name = msg_json['name']
+            #print(f'{clients[client]} has disconnected ')
+            print(f'{client_name} has disconnected ')
             client.close()
-            client_leaving = clients[client]
-            del clients[client]
+            #client_leaving = clients[client]
+            #del clients[client]
+
+            #client_leaving = clients[client_name]
+            clients.pop(client_name)
+
+            print("Nodes: {}".format(clients))
 
             payload = {
                 'net_action': 'confirm_exit',
-                'client_leaving': client_leaving
+                'client_leaving': client_name
             }
-            #broadcast_msg(f'{client_leaving} has left the room!'.encode())
+
             broadcast_msg(payload)
+            #client.close()
             break
 
         elif msg_json['net_action'] == 'unicast()':
-            msg_json['net_action']
+            #msg_json['net_action']
             destination = msg_json['destination']
+            #print(clients.keys())
+            #print(clients.values())
             unicast_msg(msg_json, clients[destination])
 
         elif msg_json['net_action'] == 'broadcast()':
             broadcast_msg(msg_json)
 
-        #if msg == 'online()'.encode('utf8'):            
-        #    real_clients_num, real_clients_name = get_clients()
-        #    client.send(f'Online users {real_clients_num} : {real_clients_name}'.encode('utf8'))
-        #elif NAME_CMD.encode('utf8') in msg:
-        #    new_client_name = msg.decode('utf8').replace(NAME_CMD + ' ', '')
-        #    clients[client] = new_client_name
-        #    new_name_msg = 'Name: {}'
-        #    unicast_msg('', client)
-        #    print(clients[client])
-        #elif msg == EXIT_CMD.encode('utf8'):
-        #    print(f'{clients[client]} has disconnected ')
-        #    client.send('You are leaving the room...'.encode())
-        #    client.close()
-        #    client_leaving = clients[client]
-        #    del clients[client]
-        #    broadcast_msg(f'{client_leaving} has left the room!'.encode())
-        #    break
-        #elif '@'.encode('utf8') in msg:
-        #    unicast_msg(msg, client)
-        #else:
-        #    broadcast_msg(msg, clients[client] + ': ')
 
 def broadcast_msg(msg):
     client_msg = json.dumps(msg)
-    for client in clients:
+    #for client in clients:
+    #    client.send(client_msg.encode('utf-8'))
+
+    for client in clients.values():
         client.send(client_msg.encode('utf-8'))
 
-#def broadcast_msg(msg, name=""):
-#    for client in clients:
-#        client.send(name.encode() + msg)
 
 def unicast_msg(msg, client):
-    #msg = msg.decode('utf8')
-    #refered_client, client_msg = msg.split(' ',1)
-    #client_to_connect = refered_client.strip('@')
- 
-    #for k,v in clients.items():
-    #    if v == client_to_connect:
-    #        k.send(f'{clients[client]} -> {client_to_connect}: {client_msg}'.encode('utf8'))
-
     client_msg = json.dumps(msg)
-    print('unicast message: {}'.format(client_msg))
-    #print(clients.items())
+    #print('unicast message: {}'.format(client_msg))
     client.send(client_msg.encode('utf-8'))
 
 def get_clients():
@@ -125,9 +115,13 @@ def get_clients():
     real_clients_name = []
 
     for k,v in clients.items():
-        if v != 'Annonymous':
+        #if v != 'Annonymous':
+        #    real_clients_num += 1
+        #    real_clients_name.append(v)
+
+        if k != 'Annonymous':
             real_clients_num += 1
-            real_clients_name.append(v)
+            real_clients_name.append(k)
 
     return real_clients_num, real_clients_name
 
@@ -142,11 +136,10 @@ if __name__ == "__main__":
     ADDR = (HOST, PORT)
     EXIT_CMD = "exit()"
     NAME_CMD = "name()"
-
     SERVER = socket(AF_INET, SOCK_STREAM)
     SERVER.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
     SERVER.bind(ADDR)
-    SERVER.listen(2)
+    SERVER.listen(10)
     print("Waiting for connection...")
     ACCEPT_THREAD = Thread(target=incomming_connections)
     ACCEPT_THREAD.start()
