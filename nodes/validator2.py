@@ -9,6 +9,8 @@ import time
 def receive_msg():
     while True:
     #while not EXIT:
+        if EXIT:
+            break
         try:
             msg = client_socket.recv(BUFFERSIZE)
             msg_json = json.loads(msg)
@@ -25,6 +27,9 @@ def receive_msg():
 
                 #print(BCNETWORKNUM)
                 print(BCNETWORKNODES)
+
+            elif msg_json['net_action'] == 'confirm_exit':
+                print('{} has left the network'.format(msg_json['client_leaving']))
 
             elif msg_json['net_action'] == 'unicast()':
                 print(msg_json)
@@ -101,7 +106,7 @@ def menu():
     #exit = False
 
     while not EXIT:
-        time.sleep(1)
+        time.sleep(0.3)
         print("\n1. Unicast.\n2. Broadcast.\n3. Network.\n4. Exit")
         selected = input("Selected option: ")
         if int(selected) == 1:
@@ -145,7 +150,7 @@ if __name__ == '__main__':
     PAYLOAD['net_action'] = 'name()'
     send_msg(PAYLOAD)
 
-    time.sleep(2)
+    time.sleep(1)
 
     menu()
 
