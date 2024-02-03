@@ -48,57 +48,57 @@ def receive_msg():
 def recvfile(filename):
     filename = os.path.basename(filename)
     fd = open(filename, "wb")
-    while True:
-        # read 1024 bytes from the socket (receive)
+
+    # read 1024 bytes from the socket (receive)
+    #bytes_read = client.recv(BUFFERSIZE)
+    #print(bytes_read)
+    done = False
+    file_bytes = b""
+    while not done:
+        print('control test')
         bytes_read = client_socket.recv(BUFFERSIZE)
-        if not bytes_read:    
-            # nothing is received
-            # file transmitting is done
-            break
-        # write to the file the bytes we just received
-        fd.write(bytes_read)
+        #print('bytes read: {}'.format(bytes_read))
+        print('terminate signal: {}'.format(bytes_read[-2:]))
+        #print('file bytes: {}'.format(file_bytes))
+        file_bytes += bytes_read
+        if bytes_read[-2:] == b"<>":
+            done = True
+            print('tranmission complete')
+        else:
+            #file_bytes += bytes_read
+            print('receiving data...')
+    file_bytes = file_bytes[:-2]
+    print(file_bytes)
+    fd.write(file_bytes)
+        #else:
+        #    # write to the file the bytes we just received
+        #    print('receiving data...')
+        #    fd.write(bytes_read)
+        #    bytes_read = client.recv(BUFFERSIZE)
+    print('closing file')
     fd.close()
 
-    '''
-    with open(filename, "wb") as f:
-        while True:
-            # read 1024 bytes from the socket (receive)
-            bytes_read = client_socket.recv(BUFFERSIZE)
-            if not bytes_read:    
-                # nothing is received
-                # file transmitting is done
-                break
-            # write to the file the bytes we just received
-            f.write(bytes_read)
-    '''
 
 def sendfile(filename):
     fd = open(filename, "rb")
     while True:
         # read the bytes from the file
         bytes_read = fd.read()
+        print(bytes_read)
         if not bytes_read:
             # file transmitting is done
+            print('file completely read')
             break
         while bytes_read:
             # we use sendall to assure transimission in 
             # busy networks
+            print('sending data...')
             client_socket.sendall(bytes_read)
             bytes_read = fd.read()
-        fd.close()
-    
-    '''
-    with open(filename, "rb") as f:
-        while True:
-            # read the bytes from the file
-            bytes_read = f.read(BUFFERSIZE)
-            if not bytes_read:
-                # file transmitting is done
-                break
-            # we use sendall to assure transimission in 
-            # busy networks
-            client_socket.sendall(bytes_read)
-    '''
+    print('closing file')
+    fd.close()
+    client_socket.send(bytes("<>", "utf-8"))
+
 
 def send_msg(payload):
     try:
@@ -134,6 +134,7 @@ def unicast(destination, message = '', filename = ''):
 
     send_msg(payload)
     if fileflag:
+        time.sleep(0.5)
         sendfile(filename)
 
 def broadcast():
@@ -174,12 +175,17 @@ def menu():
             dest = input("\nType destination node: ")
             file = input("\nSend file? Y/N: ")
             if file == "Y":
+                #unicast(dest, 'test', 'test.pem')
                 unicast(dest, 'test', 'test_client1.txt')
             else:
                 unicast(dest, 'test')
         if int(selected) == 2:
             print("\nBroadcasting")
-            broadcast()
+            file = input("\nSend file? Y/N: ")
+            if file == "Y":
+                broadcast('test', 'test_client1.txt')
+            else:
+                broadcast('test')
         if int(selected) == 3:
             network()
         if int(selected) == 4:

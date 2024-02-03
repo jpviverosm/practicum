@@ -117,18 +117,7 @@ def recvfile(client,filename):
         #    bytes_read = client.recv(BUFFERSIZE)
     print('closing file')
     fd.close()
-    '''
-    with open(filename, "wb") as f:
-        while True:
-            # read 1024 bytes from the socket (receive)
-            bytes_read = client.recv(BUFFERSIZE)
-            if not bytes_read:    
-                # nothing is received
-                # file transmitting is done
-                break
-            # write to the file the bytes we just received
-            f.write(bytes_read)
-    '''
+
 
 def sendfile(client,filename):
     fd = open(filename, "rb")
@@ -137,25 +126,17 @@ def sendfile(client,filename):
         bytes_read = fd.read()
         if not bytes_read:
             # file transmitting is done
+            print('file completely read')
             break
         while bytes_read:
             # we use sendall to assure transimission in 
             # busy networks
+            print('sending data...')
             client.sendall(bytes_read)
             bytes_read = fd.read()
-        fd.close()
-    '''
-    with open(filename, "rb") as f:
-        while True:
-            # read the bytes from the file
-            bytes_read = f.read(BUFFERSIZE)
-            if not bytes_read:
-                # file transmitting is done
-                break
-            # we use sendall to assure transimission in 
-            # busy networks
-            client.sendall(bytes_read)
-    '''
+    print('closing file')
+    fd.close()
+    client.send(bytes("<>", "utf-8"))
 
 
 def broadcast_msg(msg_json):
@@ -164,12 +145,17 @@ def broadcast_msg(msg_json):
     for client in clients.values():
         client.send(client_msg.encode('utf-8'))
 
+        if msg_json['file'] == True:
+            time.sleep(0.5)
+            sendfile(client, msg_json['filename'])
+
 
 def unicast_msg(msg_json, client):   
     client_msg = json.dumps(msg_json)
     client.send(client_msg.encode('utf-8'))
 
     if msg_json['file'] == True:
+        time.sleep(0.5)
         sendfile(client, msg_json['filename'])
 
 def get_clients():
