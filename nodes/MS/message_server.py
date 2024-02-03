@@ -25,7 +25,8 @@ def single_client(client,addr):
             payload = {
                 'net_action': 'confirm_list',
                 'real_clients_num': real_clients_num,
-                'real_clients_name': real_clients_name 
+                'real_clients_name': real_clients_name,
+                'file': False 
             }
 
             unicast_msg(payload, client)
@@ -64,7 +65,8 @@ def single_client(client,addr):
 
             payload = {
                 'net_action': 'confirm_exit',
-                'client_leaving': client_name
+                'client_leaving': client_name,
+                'file': False
             }
 
             broadcast_msg(payload)
@@ -85,6 +87,37 @@ def single_client(client,addr):
 
 def recvfile(client,filename):
     filename = os.path.basename(filename)
+    fd = open(filename, "wb")
+
+    # read 1024 bytes from the socket (receive)
+    #bytes_read = client.recv(BUFFERSIZE)
+    #print(bytes_read)
+    done = False
+    file_bytes = b""
+    while not done:
+        print('control test')
+        bytes_read = client.recv(BUFFERSIZE)
+        #print('bytes read: {}'.format(bytes_read))
+        print('terminate signal: {}'.format(bytes_read[-2:]))
+        #print('file bytes: {}'.format(file_bytes))
+        file_bytes += bytes_read
+        if bytes_read[-2:] == b"<>":
+            done = True
+            print('tranmission complete')
+        else:
+            #file_bytes += bytes_read
+            print('receiving data...')
+    file_bytes = file_bytes[:-2]
+    print(file_bytes)
+    fd.write(file_bytes)
+        #else:
+        #    # write to the file the bytes we just received
+        #    print('receiving data...')
+        #    fd.write(bytes_read)
+        #    bytes_read = client.recv(BUFFERSIZE)
+    print('closing file')
+    fd.close()
+    '''
     with open(filename, "wb") as f:
         while True:
             # read 1024 bytes from the socket (receive)
@@ -95,8 +128,23 @@ def recvfile(client,filename):
                 break
             # write to the file the bytes we just received
             f.write(bytes_read)
+    '''
 
 def sendfile(client,filename):
+    fd = open(filename, "rb")
+    while True:
+        # read the bytes from the file
+        bytes_read = fd.read()
+        if not bytes_read:
+            # file transmitting is done
+            break
+        while bytes_read:
+            # we use sendall to assure transimission in 
+            # busy networks
+            client.sendall(bytes_read)
+            bytes_read = fd.read()
+        fd.close()
+    '''
     with open(filename, "rb") as f:
         while True:
             # read the bytes from the file
@@ -107,6 +155,7 @@ def sendfile(client,filename):
             # we use sendall to assure transimission in 
             # busy networks
             client.sendall(bytes_read)
+    '''
 
 
 def broadcast_msg(msg_json):

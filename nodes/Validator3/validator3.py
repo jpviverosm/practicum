@@ -21,7 +21,6 @@ def receive_msg():
             elif msg_json['net_action'] == 'new_node':
                 print('{} has joined the network'.format(msg_json['client_name']))
 
-
             elif msg_json['net_action'] == 'confirm_list':
                 BCNETWORKNUM = msg_json['real_clients_num']
                 BCNETWORKNODES = msg_json['real_clients_name']
@@ -34,44 +33,31 @@ def receive_msg():
 
             elif msg_json['net_action'] == 'unicast()':
                 print(msg_json)
-                if msg_json['file'] == True:
-                    recvfile(msg_json['filename'])
 
             elif msg_json['net_action'] == 'broadcast()':
                 print(msg_json)
-                if msg_json['file'] == True:
-                    recvfile(msg_json['filename'])
 
         except OSError as error:
             return error
         
-def recvfile(filename):
-    filename = os.path.basename(filename)
-    with open(filename, "wb") as f:
-        while True:
-            # read 1024 bytes from the socket (receive)
-            bytes_read = client_socket.recv(BUFFERSIZE)
-            if not bytes_read:    
-                # nothing is received
-                # file transmitting is done
-                break
-            # write to the file the bytes we just received
-            f.write(bytes_read)
-
-def sendfile(filename):
-    with open(filename, "rb") as f:
-        while True:
-            # read the bytes from the file
-            bytes_read = f.read(BUFFERSIZE)
-            if not bytes_read:
-                # file transmitting is done
-                break
-            # we use sendall to assure transimission in 
-            # busy networks
-            client_socket.sendall(bytes_read)
-
 def send_msg(payload):
+    #while True:
+    #    try:
+    #        msg = input()
+    #        if msg != 'exit()':
+    #            client_socket.send(msg.encode('utf8'))
+    #        else:
+    #            clean_exit()
+    #    except EOFError:
+    #        clean_exit()
+
     try:
+        #if msg != 'exit()':
+        #if payload['net_action'] != 'exit()':
+        #    msg = json.dumps(payload)
+        #    client_socket.send(msg.encode('utf8'))
+        #else:
+        #    clean_exit()
         msg = json.dumps(payload)
         client_socket.send(msg.encode('utf8'))
     except EOFError:
@@ -85,31 +71,25 @@ def clean_exit():
     send_msg(payload)
     client_socket.close()
     EXIT = True
+    #receive_thread.stop()
     sys.exit(0)
 
 def handler(signal_recv, frame):
     clean_exit()
 
-def unicast(destination, message, filename = ''):
-      fileflag = False
-      if filename != '':
-          fileflag = True
+def unicast(destination):
       payload = {
             'net_action': 'unicast()',
-            'file': fileflag,
-            'filename': filename,
             'destination': destination,
-            'message': message
+            'message': 'test_validator1'
       }
 
       send_msg(payload)
-      if fileflag:
-        sendfile(filename)
 
 def broadcast():
       payload = {
             'net_action': 'broadcast()',
-            'message': 'test_requestor1'
+            'message': 'test_validator1'
       }
 
       send_msg(payload)
@@ -130,14 +110,8 @@ def menu():
         print("\n1. Unicast.\n2. Broadcast.\n3. Network.\n4. Exit")
         selected = input("Selected option: ")
         if int(selected) == 1:
-            #print("Available nodes: ")
-            #network()
             dest = input("\nType destination node: ")
-            file = input("\nSend file? Y/N: ")
-            if file == "Y":
-                unicast(dest, 'test' 'test_req1.txt')
-            else:
-                unicast(dest, 'test')
+            unicast(dest)
         if int(selected) == 2:
             print("\nBroadcasting")
             broadcast()
@@ -145,7 +119,6 @@ def menu():
             network()
         if int(selected) == 4:
             clean_exit()
-
 
         #else:
         #    print("\nSelect a valid option:")
@@ -159,7 +132,7 @@ if __name__ == '__main__':
     BUFFERSIZE = 1024
     ADDR = (HOST, PORT)
     ACTION = ''
-    NAME = 'Requestor1'
+    NAME = 'Validator3'
     BCNETWORKNUM = 0
     BCNETWORKNODES = []
     EXIT = False
@@ -180,3 +153,6 @@ if __name__ == '__main__':
     time.sleep(1)
 
     menu()
+
+#    if ACTION == 'CertReq':
+#        send_msg('Certificate')

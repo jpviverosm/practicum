@@ -47,6 +47,20 @@ def receive_msg():
         
 def recvfile(filename):
     filename = os.path.basename(filename)
+    fd = open(filename, "wb")
+    while True:
+        # read 1024 bytes from the socket (receive)
+        bytes_read = client_socket.recv(BUFFERSIZE)
+        if not bytes_read:    
+            # nothing is received
+            # file transmitting is done
+            break
+        else:
+            # write to the file the bytes we just received
+            fd.write(bytes_read)
+    fd.close()
+
+    '''
     with open(filename, "wb") as f:
         while True:
             # read 1024 bytes from the socket (receive)
@@ -57,8 +71,29 @@ def recvfile(filename):
                 break
             # write to the file the bytes we just received
             f.write(bytes_read)
+    '''
 
 def sendfile(filename):
+    fd = open(filename, "rb")
+    while True:
+        # read the bytes from the file
+        bytes_read = fd.read()
+        print(bytes_read)
+        if not bytes_read:
+            # file transmitting is done
+            print('file completely read')
+            break
+        while bytes_read:
+            # we use sendall to assure transimission in 
+            # busy networks
+            print('sending data...')
+            client_socket.sendall(bytes_read)
+            bytes_read = fd.read()
+    print('closing file')
+    fd.close()
+    client_socket.send(bytes("<>", "utf-8"))
+
+    '''
     with open(filename, "rb") as f:
         while True:
             # read the bytes from the file
@@ -69,6 +104,7 @@ def sendfile(filename):
             # we use sendall to assure transimission in 
             # busy networks
             client_socket.sendall(bytes_read)
+    '''
 
 def send_msg(payload):
     try:
@@ -90,36 +126,46 @@ def clean_exit():
 def handler(signal_recv, frame):
     clean_exit()
 
-def unicast(destination, message, filename = ''):
-      fileflag = False
-      if filename != '':
-          fileflag = True
-      payload = {
-            'net_action': 'unicast()',
-            'file': fileflag,
-            'filename': filename,
-            'destination': destination,
-            'message': message
-      }
+def unicast(destination, message = '', filename = ''):
+    fileflag = False
+    if filename != '':
+        fileflag = True
+    payload = {
+        'net_action': 'unicast()',
+        'file': fileflag,
+        'filename': filename,
+        'destination': destination,
+        'message': message
+    }
 
-      send_msg(payload)
-      if fileflag:
+    send_msg(payload)
+    if fileflag:
+        time.sleep(0.5)
         sendfile(filename)
 
 def broadcast():
-      payload = {
-            'net_action': 'broadcast()',
-            'message': 'test_requestor1'
-      }
+    payload = {
+        'net_action': 'broadcast()',
+        'message': 'test_requestor1'
+    }
 
-      send_msg(payload)
+    send_msg(payload)
 
 def network():
-      payload = {
-            'net_action': 'online()',
-      }
+    payload = {
+        'net_action': 'online()',
+    }
 
-      send_msg(payload)
+    send_msg(payload)
+
+def name(name):
+    payload = {
+        'net_action': 'name()',
+        'file': False,
+        'name': name
+    }
+
+    send_msg(payload)
 
 def menu():
     selected = 0
@@ -135,7 +181,8 @@ def menu():
             dest = input("\nType destination node: ")
             file = input("\nSend file? Y/N: ")
             if file == "Y":
-                unicast(dest, 'test' 'test_req1.txt')
+                #unicast(dest, 'test', 'test.pem')
+                unicast(dest, 'test', 'test_req1.txt')
             else:
                 unicast(dest, 'test')
         if int(selected) == 2:
@@ -165,6 +212,7 @@ if __name__ == '__main__':
     EXIT = False
     PAYLOAD = {
         'action': '',
+        'file': False,
         'name': NAME
     }
 
@@ -174,8 +222,9 @@ if __name__ == '__main__':
     receive_thread.start()
 
     # set name 
-    PAYLOAD['net_action'] = 'name()'
-    send_msg(PAYLOAD)
+    #PAYLOAD['net_action'] = 'name()'
+    #send_msg(PAYLOAD)
+    name(NAME)
 
     time.sleep(1)
 
