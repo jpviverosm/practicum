@@ -231,6 +231,6 @@ if __name__ == '__main__':
     #send_msg(PAYLOAD)
     name(NAME)
 
-    time.sleep(1)
+    time.sleep(0.5)
 
-    menu()
+    #menu()

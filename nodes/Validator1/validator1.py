@@ -5,6 +5,12 @@ import sys
 import os
 import json
 import time
+from OpenSSL import crypto
+
+
+#####################################################################################################################################
+### Communication handling functions
+#####################################################################################################################################
 
 def receive_msg():
     while True:
@@ -14,6 +20,7 @@ def receive_msg():
         try:
             msg = client_socket.recv(BUFFERSIZE)
             msg_json = json.loads(msg)
+
 
             if msg_json['net_action'] == 'confirm_name':
                 print('Name: {}'.format(msg_json['name']))
@@ -26,8 +33,13 @@ def receive_msg():
                 BCNETWORKNUM = msg_json['real_clients_num']
                 BCNETWORKNODES = msg_json['real_clients_name']
 
+                for node in BCNETWORKNODES:
+                    if node[:2] == 'Val':
+                        VALIDATORS_LIST.append(node)
+
                 #print(BCNETWORKNUM)
                 print(BCNETWORKNODES)
+                print(VALIDATORS_LIST)
 
             elif msg_json['net_action'] == 'confirm_exit':
                 print('{} has left the network'.format(msg_json['client_leaving']))
@@ -36,11 +48,13 @@ def receive_msg():
                 print(msg_json)
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
+                blockchain_action(msg_json)
 
             elif msg_json['net_action'] == 'broadcast()':
                 print(msg_json)
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
+                blockchain_action(msg_json)
 
         except OSError as error:
             return error
@@ -55,10 +69,10 @@ def recvfile(filename):
     done = False
     file_bytes = b""
     while not done:
-        print('control test')
+        #print('control test')
         bytes_read = client_socket.recv(BUFFERSIZE)
         #print('bytes read: {}'.format(bytes_read))
-        print('terminate signal: {}'.format(bytes_read[-2:]))
+        #print('terminate signal: {}'.format(bytes_read[-2:]))
         #print('file bytes: {}'.format(file_bytes))
         file_bytes += bytes_read
         if bytes_read[-2:] == b"<>":
@@ -118,12 +132,14 @@ def clean_exit():
 def handler(signal_recv, frame):
     clean_exit()
 
-def unicast(destination, message = '', filename = ''):
+def unicast(destination, message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
         fileflag = True
     payload = {
+        'name': NAME,
         'net_action': 'unicast()',
+        'bcaction': bcaction,
         'file': fileflag,
         'filename': filename,
         'destination': destination,
@@ -135,12 +151,14 @@ def unicast(destination, message = '', filename = ''):
         time.sleep(0.5)
         sendfile(filename)
 
-def broadcast(message = '', filename = ''):
+def broadcast(message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
         fileflag = True
     payload = {
+        'name': NAME,
         'net_action': 'broadcast()',
+        'bcaction': bcaction,
         'file': fileflag,
         'filename': filename,
         'destination': '',
@@ -167,6 +185,51 @@ def name(name):
     }
 
     send_msg(payload)
+
+#####################################################################################################################################
+### Certificate handling functions
+#####################################################################################################################################
+    
+def issue_cert(csr_file, requestor_name):
+    # load certificate
+    issuer_cert_file = NAME + ".crt"
+    issuer_key_file = NAME + ".key"
+    f1 = open(issuer_cert_file, "r")
+    issuer_cert = crypto.load_certificate(crypto.FILETYPE_PEM, f1.read())
+    f1.close()
+    # load private key for certificate signing
+    f2 = open(issuer_key_file, "r")
+    issuer_key = crypto.load_privatekey(crypto.FILETYPE_PEM, f2.read())
+    f2.close()
+
+    #create certificate
+    cert = crypto.X509()
+    csr = crypto.load_certificate_request(crypto.FILETYPE_PEM, csr_file)
+    cert.set_subject(csr.get_subject())
+    cert.set_pubkey(csr.get_pubkey())
+    cert.gmtime_adj_notBefore(0)
+    cert.gmtime_adj_notAfter(315360000)
+    cert.set_serial_number(1000)
+    cert.set_issuer(issuer_cert.get_subject())
+
+    # sign certificate
+    cert.sign(issuer_key, 'sha256')
+
+    # store certificate locally to send later
+    f3 = open(requestor_name + ".crt", "wt")
+    f3.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8"))
+
+
+
+
+#####################################################################################################################################
+### Blockchain handling functions
+#####################################################################################################################################
+    
+def blockchain_action(msg_json):
+    if msg_json['bcaction'] == "issue":
+        csr_file = msg_json['filename']
+        issue_cert(csr_file)
 
 def menu():
     selected = 0
@@ -215,11 +278,12 @@ if __name__ == '__main__':
     BCNETWORKNUM = 0
     BCNETWORKNODES = []
     EXIT = False
-    PAYLOAD = {
-        'action': '',
-        'file': False,
-        'name': NAME
-    }
+    VALIDATORS_LIST = []
+    #PAYLOAD = {
+    #    'action': '',
+    #    'file': False,
+    #    'name': NAME
+    #}
 
     client_socket = socket(AF_INET, SOCK_STREAM)
     client_socket.connect(ADDR)
@@ -231,6 +295,6 @@ if __name__ == '__main__':
     #send_msg(PAYLOAD)
     name(NAME)
 
-    time.sleep(1)
+    time.sleep(0.5)
 
-    menu()
+    #menu()

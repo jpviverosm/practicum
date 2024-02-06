@@ -120,12 +120,13 @@ def clean_exit():
 def handler(signal_recv, frame):
     clean_exit()
 
-def unicast(destination, message = '', filename = ''):
+def unicast(destination, message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
         fileflag = True
     payload = {
         'net_action': 'unicast()',
+        'bcaction': bcaction,
         'file': fileflag,
         'filename': filename,
         'destination': destination,
@@ -137,10 +138,17 @@ def unicast(destination, message = '', filename = ''):
         time.sleep(0.5)
         sendfile(filename)
 
-def broadcast():
+def broadcast(message = '', filename = '', bcaction = ''):
+    fileflag = False
+    if filename != '':
+        fileflag = True
     payload = {
         'net_action': 'broadcast()',
-        'message': 'test_requestor1'
+        'bcaction': bcaction,
+        'file': fileflag,
+        'filename': filename,
+        'destination': '',
+        'message': message
     }
 
     send_msg(payload)
@@ -224,6 +232,6 @@ if __name__ == '__main__':
     #send_msg(PAYLOAD)
     name(NAME)
 
-    time.sleep(1)
+    time.sleep(0.5)
 
     menu()
