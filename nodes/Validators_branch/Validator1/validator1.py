@@ -8,6 +8,20 @@ import time
 from OpenSSL import crypto
 import random
 
+# Global Variables
+
+HOST = '127.0.0.1'
+PORT = 33336
+BUFFERSIZE = 1024
+ADDR = (HOST, PORT)
+ACTION = ''
+NAME = 'Validator1'
+BCNETWORKNUM = 0
+BCNETWORKNODES = []
+VALIDATORS_LIST = []
+EXIT = False
+VALIDATORS_DICT = {}
+
 
 #####################################################################################################################################
 ### Communication handling functions
@@ -27,19 +41,27 @@ def receive_msg():
                 print('Name: {}'.format(msg_json['name']))
 
             elif msg_json['net_action'] == 'new_node':
-                print('{} has joined the network'.format(msg_json['client_name']))
+                if msg_json['client_name'] != NAME:
+                    print('{} has joined the network'.format(msg_json['client_name']))
 
-                if msg_json['validator'] == True:
-                    add_validator(msg_json)
+                    if msg_json['validator'] == True:
+                        if VALIDATORS_LIST:
+                            #print("Control point printing validators list: {}".format(VALIDATORS_LIST))
+                            if msg_json['client_name'] not in VALIDATORS_LIST:
+                                print("adding {} to the validators list".format(msg_json['client_name']))
+                                VALIDATORS_LIST.append(msg_json['client_name'])
+                                req_cert(msg_json['client_name'])
+
+                                
 
 
             elif msg_json['net_action'] == 'confirm_list':
                 BCNETWORKNUM = msg_json['real_clients_num']
                 BCNETWORKNODES = msg_json['real_clients_name']
-                VALIDATORS_LIST = msg_json['validators_list']                
+                VALIDATORS_LIST = msg_json['validators']                
 
                 #print(BCNETWORKNUM)
-                print(BCNETWORKNODES)
+                print("Blockchain network nodes: {}".format(BCNETWORKNODES))
                 print("Validators list: {}". format(VALIDATORS_LIST))
                 
 
@@ -97,6 +119,7 @@ def recvfile(filename):
         #    bytes_read = client.recv(BUFFERSIZE)
     print('closing file')
     fd.close()
+    
 
 def sendfile(filename):
     fd = open(filename, "rb")
@@ -237,8 +260,10 @@ def create_own_cert():
     print("Validator Key generated successfully")
 
     # add itself to the vaidators dictionary
-    pub_key = crypto.load_publickey(crypto.FILETYPE_PEM, own_cert)
+    #pub_key = crypto.dump_publickey(crypto.FILETYPE_PEM, own_key).decode("utf-8")
+    pub_key = own_cert.get_pubkey()
     VALIDATORS_DICT[NAME] = pub_key
+    VALIDATORS_LIST.append(NAME)
 
 def issue_cert(csr_file, requestor_name):
     # load certificate
@@ -276,6 +301,7 @@ def issue_cert(csr_file, requestor_name):
 
 
 def extract_public_key(cert):
+    print('Extracting public key for {}'.format(cert))
     f = open(cert, "r")
     pub_key = crypto.load_publickey(crypto.FILETYPE_PEM, f.read())
     f.close()
@@ -299,26 +325,24 @@ def blockchain_action(msg_json):
     #    add_validator(msg_json)
 
     elif msg_json['bcaction'] == "req_cert":
-        unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt')
-        
+        unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
+
+    elif msg_json['bcaction'] == "add_key":
+        add_validator_key(msg_json['name'])
     
 
-def add_validator(msg_json):
-    validator_name = msg_json['client_name']
-    req_cert(validator_name)
-    time.sleep(0.5)
-    counter = 0
-    while counter <= 10:
-        try:
-            pub_key = extract_public_key(validator_name + '.crt')
-            VALIDATORS_DICT[validator_name] = pub_key
-            print("Validator node added successfully")
-            print("Validators:\n")
-            print(VALIDATORS_DICT)
-            break
-        except:
-            print('Waiting for Certificate file...')
-            counter += 1
+def add_validator_key(validator_name):
+    print("adding keys to the validators dictionary")
+    f = open(validator_name + '.crt', "r")
+    cert = crypto.load_certificate(crypto.FILETYPE_PEM, f.read())
+    pub_key = cert.get_pubkey()
+    f.close()
+    VALIDATORS_DICT[validator_name] = pub_key
+    print("Validator node added successfully")
+    print("Validators:\n")
+    print(VALIDATORS_DICT)
+
+    
 
     
 
@@ -363,18 +387,19 @@ def menu():
 
 if __name__ == '__main__':
     signal(SIGINT, handler)
+    '''
     HOST = '127.0.0.1'
     PORT = 33336
     BUFFERSIZE = 1024
     ADDR = (HOST, PORT)
     ACTION = ''
-    NAME = 'Validator1'
+    NAME = 'Validator3'
     BCNETWORKNUM = 0
     BCNETWORKNODES = []
     VALIDATORS_LIST = []
     EXIT = False
     VALIDATORS_DICT = {}
-    
+    '''
 
     create_own_cert()
     
@@ -384,16 +409,15 @@ if __name__ == '__main__':
     receive_thread.start()
 
     # set name 
-    #PAYLOAD['net_action'] = 'name()'
-    #send_msg(PAYLOAD)
     name(NAME)
-    #broadcast('Sending Certificate', NAME + '.crt', 'add_validator')
-    time.sleep(0.5)
+    #print("validators list: {}".format(VALIDATORS_LIST))
+
+    time.sleep(1)
     network()
 
     for val in VALIDATORS_LIST:
-        add_validator({
-            'client_name': val
-        })
+        if val != NAME:
+            add_validator_key(val)
+        time.sleep(1)
 
     #menu()
