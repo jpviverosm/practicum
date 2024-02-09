@@ -10,6 +10,7 @@ import random
 
 # Global Variables
 
+'''
 HOST = '127.0.0.1'
 PORT = 33336
 BUFFERSIZE = 1024
@@ -21,6 +22,7 @@ BCNETWORKNODES = []
 VALIDATORS_LIST = []
 EXIT = False
 VALIDATORS_DICT = {}
+'''
 
 
 #####################################################################################################################################
@@ -28,6 +30,7 @@ VALIDATORS_DICT = {}
 #####################################################################################################################################
 
 def receive_msg():
+    global VALIDATORS_LIST
     while True:
     #while not EXIT:
         if EXIT:
@@ -48,6 +51,7 @@ def receive_msg():
                         if VALIDATORS_LIST:
                             #print("Control point printing validators list: {}".format(VALIDATORS_LIST))
                             if msg_json['client_name'] not in VALIDATORS_LIST:
+                                time.sleep(4)
                                 print("adding {} to the validators list".format(msg_json['client_name']))
                                 VALIDATORS_LIST.append(msg_json['client_name'])
                                 req_cert(msg_json['client_name'])
@@ -339,7 +343,7 @@ def add_validator_key(validator_name):
     f.close()
     VALIDATORS_DICT[validator_name] = pub_key
     print("Validator node added successfully")
-    print("Validators:\n")
+    print("Validators:")
     print(VALIDATORS_DICT)
 
     
@@ -387,7 +391,7 @@ def menu():
 
 if __name__ == '__main__':
     signal(SIGINT, handler)
-    '''
+    
     HOST = '127.0.0.1'
     PORT = 33336
     BUFFERSIZE = 1024
@@ -399,7 +403,7 @@ if __name__ == '__main__':
     VALIDATORS_LIST = []
     EXIT = False
     VALIDATORS_DICT = {}
-    '''
+    
 
     create_own_cert()
     
@@ -414,10 +418,20 @@ if __name__ == '__main__':
 
     time.sleep(1)
     network()
+    time.sleep(2)
+
+    print("test line 419, validators list: {}".format(VALIDATORS_LIST))
 
     for val in VALIDATORS_LIST:
+        print("iterating validators list: {}".format(val))
         if val != NAME:
-            add_validator_key(val)
-        time.sleep(1)
+            print("Adding {} to the dictionary".format(val))
+            req_cert(val)
+            time.sleep(1)
+            #add_validator_key(val)
+            #time.sleep(1)
+
+    #print("Validator:")
+    #print(VALIDATORS_DICT)
 
     #menu()
