@@ -1,0 +1,13 @@
+header: {
+	Block Number: ""
+	Timestamp: ""
+	Previous block hash: ""
+	Body hash: ""
+	Certificate Hash list Merkle root: ""
+	Transactions Merkle root: ""
+	Validator nodes Merkle root: ""
+	Issued domains Merkle root: ""
+	Merkle proof of current certificate: ""
+	Merkle root hash: ""
+	Audit path: ""
+}

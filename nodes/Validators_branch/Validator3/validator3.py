@@ -3,10 +3,13 @@ from threading import Thread
 from signal import signal, SIGINT
 import sys
 import os
+import os.path
 import json
 import time
 from OpenSSL import crypto
 import random
+from filehash import FileHash
+import glob
 
 # Global Variables
 
@@ -51,7 +54,7 @@ def receive_msg():
                         if VALIDATORS_LIST:
                             #print("Control point printing validators list: {}".format(VALIDATORS_LIST))
                             if msg_json['client_name'] not in VALIDATORS_LIST:
-                                time.sleep(4)
+                                time.sleep(VAL_NUM)
                                 print("adding {} to the validators list".format(msg_json['client_name']))
                                 VALIDATORS_LIST.append(msg_json['client_name'])
                                 req_cert(msg_json['client_name'])
@@ -323,7 +326,28 @@ def blockchain_action(msg_json):
     if msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
         requestor_name = msg_json['name']
-        issue_cert(csr_file, requestor_name)
+
+        # Get the last block in the blockchain
+        folder_path = './blockchain/*'
+        file_type = r'\*txt'
+        files = glob.glob(folder_path)
+        latest_block = max(files, key=os.path.getctime)
+
+        # Get the hash of the last block
+        sha256hasher = FileHash('sha256')
+        block_hash = sha256hasher.hash_file(latest_block)
+        block_hash_int = int(block_hash, 16)
+
+        print("last block hash: {}".format(block_hash))
+        print("hash % {}: {}".format(len(VALIDATORS_LIST), block_hash_int % len(VALIDATORS_LIST)))
+
+        selected_val = (block_hash_int % len(VALIDATORS_LIST)) + 1
+        print("Validator{} has been selected to issue certificate".format(selected_val))
+
+        # Select validator to issue certificate
+        #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
+        if selected_val == VAL_NUM:
+            issue_cert(csr_file, requestor_name)
 
     #elif msg_json['bcaction'] == "add_validator":
     #    add_validator(msg_json)
@@ -397,7 +421,8 @@ if __name__ == '__main__':
     BUFFERSIZE = 1024
     ADDR = (HOST, PORT)
     ACTION = ''
-    NAME = 'Validator3'
+    VAL_NUM = 3
+    NAME = 'Validator' + str(VAL_NUM)
     BCNETWORKNUM = 0
     BCNETWORKNODES = []
     VALIDATORS_LIST = []
