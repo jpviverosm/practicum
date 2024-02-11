@@ -10,6 +10,7 @@ from OpenSSL import crypto
 import random
 from filehash import FileHash
 import glob
+from merkly.mtree import MerkleTree
 
 # Global Variables
 
@@ -272,7 +273,10 @@ def create_own_cert():
     VALIDATORS_DICT[NAME] = pub_key
     VALIDATORS_LIST.append(NAME)
 
-def issue_cert(csr_file, requestor_name):
+def issue_cert(csr_file, requestor_name, latest_block_hash):
+    global CERTS_HASH_LIST
+    global ISSUED_DOMAINS
+
     # load certificate
     issuer_cert_file = NAME + ".crt"
     issuer_key_file = NAME + ".key"
@@ -302,8 +306,27 @@ def issue_cert(csr_file, requestor_name):
     # store certificate locally to send later
     f3 = open(requestor_name + ".crt", "wt")
     f3.write(crypto.dump_certificate(crypto.FILETYPE_PEM, cert).decode("utf-8"))
+    f3.close()
+
+    # add cert hash to the hash list
+    sha256hasher = FileHash('sha256')
+    # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
+    if len(CERTS_HASH_LIST) < 1:
+        CERTS_HASH_LIST.append(latest_block_hash)
+
+    CERTS_HASH_LIST.append(sha256hasher.hash_file(requestor_name + ".crt"))
+
+    # add domain to the issued domains list
+    # need at least 2 elements in list to build the merkle tree, if list is empty, add "Genesis" as the first domain in list
+    if len(ISSUED_DOMAINS) < 1:
+        ISSUED_DOMAINS.append("Genesis")
+
+    ISSUED_DOMAINS.append(str(cert.get_subject().commonName))
+    print(ISSUED_DOMAINS)
+
 
     print('Certificate created successfully')
+
 
 
 
@@ -323,31 +346,44 @@ def req_cert(name):
 #####################################################################################################################################
     
 def blockchain_action(msg_json):
+    global VALIDATORS_LIST
     if msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
         requestor_name = msg_json['name']
 
         # Get the last block in the blockchain
         folder_path = './blockchain/*'
-        file_type = r'\*txt'
+        #file_type = r'\*txt'
         files = glob.glob(folder_path)
         latest_block = max(files, key=os.path.getctime)
 
         # Get the hash of the last block
         sha256hasher = FileHash('sha256')
-        block_hash = sha256hasher.hash_file(latest_block)
-        block_hash_int = int(block_hash, 16)
+        latest_block_hash = sha256hasher.hash_file(latest_block)
+        latest_block_hash_int = int(latest_block_hash, 16)
 
-        print("last block hash: {}".format(block_hash))
-        print("hash % {}: {}".format(len(VALIDATORS_LIST), block_hash_int % len(VALIDATORS_LIST)))
+        print("last block hash: {}".format(latest_block_hash))
+        print("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
 
-        selected_val = (block_hash_int % len(VALIDATORS_LIST)) + 1
+        selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
         print("Validator{} has been selected to issue certificate".format(selected_val))
 
         # Select validator to issue certificate
         #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
         if selected_val == VAL_NUM:
-            issue_cert(csr_file, requestor_name)
+            issue_cert(csr_file, requestor_name, latest_block_hash)
+            block_hd = block_header(requestor_name, latest_block)
+            
+            #print("block header type: {}".format(type(block_hd)))
+            json_object = json.dumps(block_hd, indent=4)
+ 
+            # Writing to sample.json
+            f = open("block" + block_hd["Block_num"] + ".json", "w")
+            f.write(json_object)
+            #json.dump(block_hd, f)
+            f.close()
+
+            # new proposed block
 
     #elif msg_json['bcaction'] == "add_validator":
     #    add_validator(msg_json)
@@ -370,47 +406,69 @@ def add_validator_key(validator_name):
     print("Validators:")
     print(VALIDATORS_DICT)
 
+
+def block_header(requestor_name, latest_block):
+    global CERTS_HASH_LIST
+    global VALIDATORS_LIST
+    global ISSUED_DOMAINS
+
+    header = {
+	    "Block_num": "",
+	    "Timestamp": "",
+	    "Previous_block_hash": "",
+	    "Certificates_Merkle_root": "",
+	    "Transactions_Merkle_root": "",
+    	"Validator_Merkle_root": "",
+	    "Issued_domains_Merkle_root": "",
+	    "Current_Cert_Merkle_proof": "",
+        "Current_Cert_Hash": ""
+    }
+
+    # Determine block number
+    f = open(latest_block)
+    latest_block_content = json.load(f)
+    new_block_num = int(latest_block_content["Block_num"]) + 1
+    header["Block_num"] = str(new_block_num)
+    f.close()
+
+    # Determine timestamp
+    header["Timestamp"] = str(time.time())
+
+    # Determine previous block hash
+    sha256hasher = FileHash('sha256')
+    header["Previous_block_hash"] = sha256hasher.hash_file(latest_block)
+
+    # Determine Certificates hash list Merkle root
+    #if len(CERTS_HASH_LIST) >= 2:
+    #    certs_mtree = MerkleTree(CERTS_HASH_LIST)
+    certs_mtree = MerkleTree(CERTS_HASH_LIST)
+    #print(mtree)
+    #mroot =  mtree.root.hex()
+    #print("mroot: {}".format(mroot))
+    header["Certificates_Merkle_root"] = certs_mtree.root.hex()
+
+    # Determine validators list Merkle root
+    validators_mtree = MerkleTree(VALIDATORS_LIST)
+    header["Validator_Merkle_root"] = validators_mtree.root.hex()
+
+    # Determine Issued domains list Merkle root
+    domains_mtree = MerkleTree(ISSUED_DOMAINS)
+    header["Validator_Merkle_root"] = domains_mtree.root.hex()
+
+    # Determine current issued certificate proof
+    cert_hash = sha256hasher.hash_file(requestor_name + ".crt")
+    print("Cert hash: {}".format(cert_hash))
+    print("Cert hash list: {}".format(CERTS_HASH_LIST))
+    certproof = certs_mtree.proof(cert_hash)
+    header["Current_Cert_Merkle_proof"] = str(certproof)
+
+    # Determine current cert hash
+    header["Current_Cert_Hash"] = cert_hash
+
+    return header
     
 
     
-
-
-
-
-def menu():
-    selected = 0
-    #exit = False
-
-    while not EXIT:
-        time.sleep(0.3)
-        print("\n1. Unicast.\n2. Broadcast.\n3. Network.\n4. Exit")
-        selected = input("Selected option: ")
-        if int(selected) == 1:
-            #print("Available nodes: ")
-            #network()
-            dest = input("\nType destination node: ")
-            file = input("\nSend file? Y/N: ")
-            if file == "Y":
-                #unicast(dest, 'test', 'test.pem')
-                unicast(dest, 'test', 'test_val1.txt')
-            else:
-                unicast(dest, 'test')
-        if int(selected) == 2:
-            print("\nBroadcasting")
-            file = input("\nSend file? Y/N: ")
-            if file == "Y":
-                broadcast('test', 'test_val1.txt')
-            else:
-                broadcast('test')
-        if int(selected) == 3:
-            network()
-        if int(selected) == 4:
-            clean_exit()
-
-
-        #else:
-        #    print("\nSelect a valid option:")
-            
 
 
 if __name__ == '__main__':
@@ -422,13 +480,15 @@ if __name__ == '__main__':
     ADDR = (HOST, PORT)
     ACTION = ''
     #VAL_NUM = 1
-    VAL_NUM = sys.argv[1]
+    VAL_NUM = int(sys.argv[1])
     NAME = 'Validator' + str(VAL_NUM)
     BCNETWORKNUM = 0
     BCNETWORKNODES = []
     VALIDATORS_LIST = []
     EXIT = False
     VALIDATORS_DICT = {}
+    CERTS_HASH_LIST = []
+    ISSUED_DOMAINS = []
     
 
     create_own_cert()

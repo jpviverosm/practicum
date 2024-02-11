@@ -1,0 +1,10 @@
+{
+	"Block_num": "1",
+	"Timestamp": "",
+	"Previous_block_hash": "",
+	"Certificates_Merkle_root": "",
+	"Transactions_Merkle_root": "",
+	"Validator_Merkle_root": "",
+	"Issued_domains_Merkle_root": "",
+	"Current_Cert_Merkle_proof": ""
+}

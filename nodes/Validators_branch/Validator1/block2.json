@@ -1,0 +1,11 @@
+{
+    "Block_num": "2",
+    "Timestamp": "1707672869.8785572",
+    "Previous_block_hash": "cea4beb6d58724b1a7a967d769df75c94ff60733a265887b7beae28054978d24",
+    "Certificates_Merkle_root": "be3d4a9793bb28fbaf9b9073fea027cd4d0c627b681933f330cefb20c1fcda99",
+    "Transactions_Merkle_root": "",
+    "Validator_Merkle_root": "6328f6e832238463367e0c6e7a7bcc98b0e7bf5d1012134405ac9cca091ba235",
+    "Issued_domains_Merkle_root": "",
+    "Current_Cert_Merkle_proof": "[Node(2a31f7632bee30e4995fae550513addc8612baf4729feb477e8e4111ef8e67fa, Side.LEFT)]",
+    "Current_Cert_Hash": "72f991b258853a4b787cd0ebb41b0e3cd91a96e42fe1fadda1f61eaa1a7f9123"
+}

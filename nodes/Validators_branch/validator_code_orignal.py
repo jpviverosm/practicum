@@ -422,7 +422,7 @@ if __name__ == '__main__':
     ADDR = (HOST, PORT)
     ACTION = ''
     #VAL_NUM = 1
-    VAL_NUM = sys.argv[1]
+    VAL_NUM = int(sys.argv[1])
     NAME = 'Validator' + str(VAL_NUM)
     BCNETWORKNUM = 0
     BCNETWORKNODES = []
