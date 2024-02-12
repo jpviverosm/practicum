@@ -11,6 +11,7 @@ import random
 from filehash import FileHash
 import glob
 from merkly.mtree import MerkleTree
+import hashlib
 
 # Global Variables
 
@@ -318,12 +319,17 @@ def issue_cert(csr_file, requestor_name, latest_block_hash):
 
     # add domain to the issued domains list
     # need at least 2 elements in list to build the merkle tree, if list is empty, add "Genesis" as the first domain in list
-    if len(ISSUED_DOMAINS) < 1:
-        ISSUED_DOMAINS.append("Genesis")
+    if len(ISSUED_DOMAINS.keys()) < 1:
+        ISSUED_DOMAINS.update({"Genesis": hashlib.sha256("Genesis".encode()).hexdigest()})
 
-    ISSUED_DOMAINS.append(str(cert.get_subject().commonName))
+    #ISSUED_DOMAINS.append(str(cert.get_subject().commonName))
+    #print(ISSUED_DOMAINS)
+        
+    pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
+        
+    #ISSUED_DOMAINS.update({str(cert.get_subject().commonName): csr.get_pubkey()})
+    ISSUED_DOMAINS.update({str(cert.get_subject().commonName): pub_key_hash.hexdigest()})
     print(ISSUED_DOMAINS)
-
 
     print('Certificate created successfully')
 
@@ -371,19 +377,28 @@ def blockchain_action(msg_json):
         # Select validator to issue certificate
         #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
         if selected_val == VAL_NUM:
+            # Validation logic cert.get_subject().commonName)
+            
+
             issue_cert(csr_file, requestor_name, latest_block_hash)
             block_hd = block_header(requestor_name, latest_block)
             
             #print("block header type: {}".format(type(block_hd)))
             json_object = json.dumps(block_hd, indent=4)
  
-            # Writing to sample.json
+            # new proposed block
             f = open("block" + block_hd["Block_num"] + ".json", "w")
             f.write(json_object)
             #json.dump(block_hd, f)
             f.close()
 
-            # new proposed block
+            time.sleep(3)
+
+            # send the header and certificate to other validators for attestation
+            for val in VALIDATORS_LIST:
+                if val != NAME:
+                    unicast(val, block_hd, requestor_name + '.crt', 'attest')
+                    time.sleep(1)
 
     #elif msg_json['bcaction'] == "add_validator":
     #    add_validator(msg_json)
@@ -393,6 +408,9 @@ def blockchain_action(msg_json):
 
     elif msg_json['bcaction'] == "add_key":
         add_validator_key(msg_json['name'])
+
+    elif msg_json['bcaction'] == "attest":
+        time.sleep(1)
     
 
 def add_validator_key(validator_name):
@@ -452,7 +470,7 @@ def block_header(requestor_name, latest_block):
     header["Validator_Merkle_root"] = validators_mtree.root.hex()
 
     # Determine Issued domains list Merkle root
-    domains_mtree = MerkleTree(ISSUED_DOMAINS)
+    domains_mtree = MerkleTree(list(ISSUED_DOMAINS.keys()))
     header["Validator_Merkle_root"] = domains_mtree.root.hex()
 
     # Determine current issued certificate proof
@@ -488,7 +506,7 @@ if __name__ == '__main__':
     EXIT = False
     VALIDATORS_DICT = {}
     CERTS_HASH_LIST = []
-    ISSUED_DOMAINS = []
+    ISSUED_DOMAINS = {}
     
 
     create_own_cert()
