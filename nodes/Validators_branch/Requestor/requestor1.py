@@ -194,12 +194,11 @@ def menu():
                 unicast(dest, 'test')
         if int(selected) == 2:
             print("\Sending CSR request to the blockchain network...")
+            # Legit request
             broadcast('Certificate Request', NAME +'.csr', 'issue')
-            #file = input("\nSend file? Y/N: ")
-            #if file == "Y":
-            #    broadcast('test', 'Requestor1.csr', 'issue')
-            #else:
-            #    broadcast('test')
+            # Rogue request
+            #broadcast('Certificate Request', NAME +'b.csr', 'issue')
+
         if int(selected) == 3:
             network()
         if int(selected) == 4:

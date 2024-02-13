@@ -12,22 +12,7 @@ from filehash import FileHash
 import glob
 from merkly.mtree import MerkleTree
 import hashlib
-
-# Global Variables
-
-'''
-HOST = '127.0.0.1'
-PORT = 33336
-BUFFERSIZE = 1024
-ADDR = (HOST, PORT)
-ACTION = ''
-NAME = 'Validator3'
-BCNETWORKNUM = 0
-BCNETWORKNODES = []
-VALIDATORS_LIST = []
-EXIT = False
-VALIDATORS_DICT = {}
-'''
+import warnings
 
 
 #####################################################################################################################################
@@ -250,6 +235,19 @@ def create_own_cert():
     
     own_cert.set_issuer(ca_subj)
     own_cert.set_pubkey(own_key)
+    
+    own_cert.add_extensions([
+        crypto.X509Extension(b"subjectKeyIdentifier", False, b"hash", subject=own_cert),
+    ])
+
+    own_cert.add_extensions([
+        crypto.X509Extension(b"authorityKeyIdentifier", False, b"keyid:always,issuer", issuer=own_cert),
+    ])
+
+    own_cert.add_extensions([
+        crypto.X509Extension(b"basicConstraints", True, b"CA:TRUE"),
+    ])
+    
 
     own_cert.gmtime_adj_notBefore(0)
     own_cert.gmtime_adj_notAfter(10*365*24*60*60)
@@ -311,6 +309,11 @@ def issue_cert(csr_file, requestor_name, latest_block_hash):
 
     # add cert hash to the hash list
     sha256hasher = FileHash('sha256')
+    pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
+    domain = str(cert.get_subject().commonName)
+
+    update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain)
+    '''
     # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
     if len(CERTS_HASH_LIST) < 1:
         CERTS_HASH_LIST.append(latest_block_hash)
@@ -330,8 +333,33 @@ def issue_cert(csr_file, requestor_name, latest_block_hash):
     #ISSUED_DOMAINS.update({str(cert.get_subject().commonName): csr.get_pubkey()})
     ISSUED_DOMAINS.update({str(cert.get_subject().commonName): pub_key_hash.hexdigest()})
     print(ISSUED_DOMAINS)
+    '''
 
     print('Certificate created successfully')
+
+
+def update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain):
+    # add cert hash to the hash list
+    sha256hasher = FileHash('sha256')
+    # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
+    if len(CERTS_HASH_LIST) < 1:
+        CERTS_HASH_LIST.append(latest_block_hash)
+
+    CERTS_HASH_LIST.append(sha256hasher.hash_file(requestor_name + ".crt"))
+
+    # add domain to the issued domains list
+    # need at least 2 elements in list to build the merkle tree, if list is empty, add "Genesis" as the first domain in list
+    if len(ISSUED_DOMAINS.keys()) < 1:
+        ISSUED_DOMAINS.update({"Genesis": hashlib.sha256("Genesis".encode()).hexdigest()})
+
+    #ISSUED_DOMAINS.append(str(cert.get_subject().commonName))
+    #print(ISSUED_DOMAINS)
+        
+    #pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
+        
+    #ISSUED_DOMAINS.update({str(cert.get_subject().commonName): csr.get_pubkey()})
+    ISSUED_DOMAINS.update({domain: pub_key_hash.hexdigest()})
+    print(ISSUED_DOMAINS)
 
 
 
@@ -377,31 +405,40 @@ def blockchain_action(msg_json):
         # Select validator to issue certificate
         #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
         if selected_val == VAL_NUM:
-            # Validation logic cert.get_subject().commonName)
-            
+            # Validation logic 
+            f_csr = open(csr_file, 'r')
+            csr = crypto.load_certificate_request(crypto.FILETYPE_PEM, f_csr.read())
+            pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
+            f_csr.close()
 
-            issue_cert(csr_file, requestor_name, latest_block_hash)
-            block_hd = block_header(requestor_name, latest_block)
+            if csr.get_subject().commonName not in ISSUED_DOMAINS.keys():
+                if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
+                    issue_cert(csr_file, requestor_name, latest_block_hash)
+                    block_hd = block_header(requestor_name, latest_block)
             
-            #print("block header type: {}".format(type(block_hd)))
-            json_object = json.dumps(block_hd, indent=4)
+                    #print("block header type: {}".format(type(block_hd)))
+                    json_object = json.dumps(block_hd, indent=4)
  
-            # new proposed block
-            f = open("block" + block_hd["Block_num"] + ".json", "w")
-            f.write(json_object)
-            #json.dump(block_hd, f)
-            f.close()
+                    # new proposed block
+                    f = open("block" + block_hd["Block_num"] + ".json", "w")
+                    f.write(json_object)
+                    #json.dump(block_hd, f)
+                    f.close()
 
-            time.sleep(3)
+                    time.sleep(3)
 
-            # send the header and certificate to other validators for attestation
-            for val in VALIDATORS_LIST:
-                if val != NAME:
-                    unicast(val, block_hd, requestor_name + '.crt', 'attest')
-                    time.sleep(1)
+                    # send the header and certificate to other validators for attestation
+                    for val in VALIDATORS_LIST:
+                        if val != NAME:
+                            unicast(val, block_hd, requestor_name + '.crt', 'attest')
+                            time.sleep(1)
 
-    #elif msg_json['bcaction'] == "add_validator":
-    #    add_validator(msg_json)
+                else:
+                    print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
+            else:
+                print("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
+
+    
 
     elif msg_json['bcaction'] == "req_cert":
         unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
@@ -410,8 +447,58 @@ def blockchain_action(msg_json):
         add_validator_key(msg_json['name'])
 
     elif msg_json['bcaction'] == "attest":
-        time.sleep(1)
+        # Validate new certificate
+        cert_file = msg_json['filename']
+        issuer_validator = msg_json['name']
+        f_issuer_cert = open(issuer_validator + ".crt", "r")
+        issuer_cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_issuer_cert.read())
+        #issuer_pub_key = issuer_cert.get_pubkey()
+        f_issuer_cert.close()
+       
+        f_cert = open(cert_file, 'r')
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
+        pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, cert.get_pubkey()))
+        f_cert.close()
+
+        store = crypto.X509Store()
+        store.add_cert(issuer_cert)
+        store_context = crypto.X509StoreContext(store, cert)
+
+        try:
+            store_context.verify_certificate()
+            print("Valid signature")
+
+            if cert.get_subject().commonName not in ISSUED_DOMAINS.keys():
+                if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
+                    print("valid certificate")
+
+                    # Validate new block
+                    requestor_name = msg_json['filename'][:-4]
+                    # Get the last block in the blockchain
+                    folder_path = './blockchain/*'
+                    files = glob.glob(folder_path)
+                    sha256hasher = FileHash('sha256')
+                    latest_block = max(files, key=os.path.getctime)
+                    latest_block_hash = sha256hasher.hash_file(latest_block)
+                    domain = str(cert.get_subject().commonName)
+
+                    update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain)
+
+                    block_hd = block_header(requestor_name, latest_block)
+
+                    print("calculated block header: {}".format(type(block_hd)))
+                    print(block_hd)
+                    print("received block header: {}",format(type(msg_json['message'])))
+                    print(msg_json['message'])
+                    if block_hd == msg_json['message']:
+                        print("same block header")
+        except Exception as error:
+            print("Invalid certificate signature")
+            print(error)
+
+        
     
+
 
 def add_validator_key(validator_name):
     print("adding keys to the validators dictionary")
@@ -508,7 +595,8 @@ if __name__ == '__main__':
     CERTS_HASH_LIST = []
     ISSUED_DOMAINS = {}
     
-
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    
     create_own_cert()
     
     client_socket = socket(AF_INET, SOCK_STREAM)
