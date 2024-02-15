@@ -172,7 +172,7 @@ def broadcast_msg(msg_json):
         client.send(client_msg.encode('utf-8'))
 
         if msg_json['file'] == True:
-            time.sleep(0.5)
+            time.sleep(2)
             sendfile(client, msg_json['filename'])
 
 

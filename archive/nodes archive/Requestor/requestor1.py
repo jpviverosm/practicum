@@ -5,8 +5,6 @@ import sys
 import os
 import json
 import time
-from OpenSSL import crypto
-import hashlib
 
 def receive_msg():
     while True:
@@ -39,16 +37,10 @@ def receive_msg():
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
 
-                if msg_json['bcaction'] != '':    
-                    blockchain_action(msg_json)
-
             elif msg_json['net_action'] == 'broadcast()':
                 print(msg_json)
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
-
-                if msg_json['bcaction'] != '':    
-                    blockchain_action(msg_json)
 
         except OSError as error:
             return error
@@ -182,40 +174,6 @@ def name(name):
 
     send_msg(payload)
 
-def blockchain_action(msg_json):
-    if msg_json["bcaction"] == "recv_cert":
-        time.sleep(1)
-        req_cert(msg_json['name'])
-
-    elif msg_json['bcaction'] == "add_key":
-
-        cert_file = NAME + ".crt"
-       
-        f_cert = open(cert_file, 'r')
-        cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
-        f_cert.close()
-
-        issuer_validator = msg_json['name']
-
-        f_issuer_cert = open(issuer_validator + ".crt", "r")
-        issuer_cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_issuer_cert.read())
-        #issuer_pub_key = issuer_cert.get_pubkey()
-        f_issuer_cert.close()
-
-        store = crypto.X509Store()
-        store.add_cert(issuer_cert)
-        store_context = crypto.X509StoreContext(store, cert)
-
-        try:
-            store_context.verify_certificate()
-            print("Valid signature")
-        except Exception as error:
-            print("Invalid certificate signature")
-            print(error)
-            
-def req_cert(name):
-    unicast(name, 'Requesting Certificate', '', 'req_cert')
-
 def menu():
     selected = 0
     #exit = False
@@ -236,11 +194,12 @@ def menu():
                 unicast(dest, 'test')
         if int(selected) == 2:
             print("\Sending CSR request to the blockchain network...")
-            # Legit request
             broadcast('Certificate Request', NAME +'.csr', 'issue')
-            # Rogue request
-            #broadcast('Certificate Request', NAME +'b.csr', 'issue')
-
+            #file = input("\nSend file? Y/N: ")
+            #if file == "Y":
+            #    broadcast('test', 'Requestor1.csr', 'issue')
+            #else:
+            #    broadcast('test')
         if int(selected) == 3:
             network()
         if int(selected) == 4:
