@@ -13,6 +13,7 @@ import glob
 from merkly.mtree import MerkleTree
 import hashlib
 import warnings
+import math
 
 
 #####################################################################################################################################
@@ -381,6 +382,9 @@ def req_cert(name):
     
 def blockchain_action(msg_json):
     global VALIDATORS_LIST
+    global VOTES
+    global APPROVE_VOTES
+
     if msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
         requestor_name = msg_json['name']
@@ -420,10 +424,9 @@ def blockchain_action(msg_json):
                     json_object = json.dumps(block_hd, indent=4)
  
                     # new proposed block
-                    f = open("block" + block_hd["Block_num"] + ".json", "w")
-                    f.write(json_object)
-                    #json.dump(block_hd, f)
-                    f.close()
+                    ###f = open("block" + block_hd["Block_num"] + ".json", "w")
+                    ###f.write(json_object)
+                    ###f.close()
 
                     time.sleep(3)
 
@@ -448,6 +451,10 @@ def blockchain_action(msg_json):
 
     elif msg_json['bcaction'] == "attest":
         # Validate new certificate
+        vote = False
+        original_header_timestamp = msg_json['message']['Timestamp']
+        #print("Original header: ")
+        #print(original_header)
         cert_file = msg_json['filename']
         issuer_validator = msg_json['name']
         f_issuer_cert = open(issuer_validator + ".crt", "r")
@@ -490,14 +497,64 @@ def blockchain_action(msg_json):
                     print(block_hd)
                     print("received block header: {}",format(type(msg_json['message'])))
                     print(msg_json['message'])
-                    if block_hd == msg_json['message']:
-                        print("same block header")
+
+                    block_hd['Timestamp'] = ''
+                    block_recvd = msg_json['message']
+                    block_recvd['Timestamp'] = ''
+                    ##### Validate without timestap!!!!
+                    
+                    if block_hd == block_recvd:
+                        print("same block header, valid block")
+                        block_recvd['Timestamp'] = original_header_timestamp
+                        vote = True
+                        APPROVE_VOTES += 1
+                    else:
+                        print("Invalid block")
+                else:
+                    print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
+            else:
+                print("Invalid request, {} has an existing Certificate in the blockchain".format(cert.get_subject().commonName))
+
+
         except Exception as error:
             print("Invalid certificate signature")
             print(error)
 
+        #send_validators(vote)
+        msg = [vote, block_recvd]
+        time.sleep(3)
+        for val in VALIDATORS_LIST:
+            if val != NAME:
+                unicast(val,msg,'','vote')   
+                time.sleep(VAL_NUM)
+
+    elif msg_json['bcaction'] == "vote":
+        vote = msg_json['message'][0]
+        header = msg_json['message'][1]
+        VOTES[msg_json['name']] = vote
+
+        # PBFT fault tolerance metrics
+        # consensus is achieved if and only if the number of votes is greater or 
+        # equal than 2f+1, where f=(t-1)/3, and t is the number of validators in the blockchain network
+
+        ft = (len(VALIDATORS_LIST) - 1) / 3
+        vote_threshold = math.trunc((2 * ft) + 1)
         
-    
+        if vote == True:
+            APPROVE_VOTES += 1
+
+        if APPROVE_VOTES >= vote_threshold:
+            # adding block to blockchain
+            json_object = json.dumps(header, indent=4)
+            f = open("./blockchain/block" + header["Block_num"] + ".json", "w")
+            f.write(json_object)
+            f.close()
+            APPROVE_VOTES = 0
+            print("Consensus achieved, bock added to blockchain successfully")
+
+        else:
+            print("Not enough approval votes to add block")
+
 
 
 def add_validator_key(validator_name):
@@ -594,6 +651,8 @@ if __name__ == '__main__':
     VALIDATORS_DICT = {}
     CERTS_HASH_LIST = []
     ISSUED_DOMAINS = {}
+    VOTES = {}
+    APPROVE_VOTES = 0
     
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     
