@@ -384,6 +384,7 @@ def blockchain_action(msg_json):
     global VALIDATORS_LIST
     global VOTES
     global APPROVE_VOTES
+    global SELECTED
 
     if msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
@@ -409,6 +410,7 @@ def blockchain_action(msg_json):
         # Select validator to issue certificate
         #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
         if selected_val == VAL_NUM:
+            SELECTED = True
             # Validation logic 
             f_csr = open(csr_file, 'r')
             csr = crypto.load_certificate_request(crypto.FILETYPE_PEM, f_csr.read())
@@ -521,7 +523,8 @@ def blockchain_action(msg_json):
             print(error)
 
         #send_validators(vote)
-        msg = [vote, block_recvd]
+        
+        msg = [vote, block_recvd, requestor_name]
         time.sleep(3)
         for val in VALIDATORS_LIST:
             if val != NAME:
@@ -531,6 +534,7 @@ def blockchain_action(msg_json):
     elif msg_json['bcaction'] == "vote":
         vote = msg_json['message'][0]
         header = msg_json['message'][1]
+        requestor = msg_json['message'][2]
         VOTES[msg_json['name']] = vote
 
         # PBFT fault tolerance metrics
@@ -551,6 +555,10 @@ def blockchain_action(msg_json):
             f.close()
             APPROVE_VOTES = 0
             print("Consensus achieved, bock added to blockchain successfully")
+
+            if SELECTED == True:
+                print("Sending certificate to requestor")
+                unicast(requestor,"Sending certificate", requestor + ".crt","recv_cert")
 
         else:
             print("Not enough approval votes to add block")
@@ -653,6 +661,7 @@ if __name__ == '__main__':
     ISSUED_DOMAINS = {}
     VOTES = {}
     APPROVE_VOTES = 0
+    SELECTED = False
     
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     
