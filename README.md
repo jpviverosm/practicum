@@ -1,3 +1,5 @@
+Python3 scripts for each blockchain node under the "nodes"folder
+
 # Blockchain based PKI prototype in Python
 Decentralized PKI architecture based on blockchain, replacing the Certificate Authorities with decentralized validator nodes in the blockchain, eliminating single points of failure and the need of a trusted third-party.
 
