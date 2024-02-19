@@ -461,7 +461,7 @@ def blockchain_action(msg_json):
         issuer_validator = msg_json['name']
         f_issuer_cert = open(issuer_validator + ".crt", "r")
         issuer_cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_issuer_cert.read())
-        #issuer_pub_key = issuer_cert.get_pubkey()
+        issuer_pub_key = issuer_cert.get_pubkey()
         f_issuer_cert.close()
        
         f_cert = open(cert_file, 'r')
@@ -477,45 +477,50 @@ def blockchain_action(msg_json):
             store_context.verify_certificate()
             print("Valid signature")
 
-            if cert.get_subject().commonName not in ISSUED_DOMAINS.keys():
-                if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
-                    print("valid certificate")
+            if issuer_pub_key.to_cryptography_key() == VALIDATORS_DICT[issuer_validator].to_cryptography_key():
+                print("Issuer validator key validated matches the key stored in dictionary")
 
-                    # Validate new block
-                    requestor_name = msg_json['filename'][:-4]
-                    # Get the last block in the blockchain
-                    folder_path = './blockchain/*'
-                    files = glob.glob(folder_path)
-                    sha256hasher = FileHash('sha256')
-                    latest_block = max(files, key=os.path.getctime)
-                    latest_block_hash = sha256hasher.hash_file(latest_block)
-                    domain = str(cert.get_subject().commonName)
+                if cert.get_subject().commonName not in ISSUED_DOMAINS.keys():
+                    if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
+                        print("valid certificate")
 
-                    update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain)
+                        # Validate new block
+                        requestor_name = msg_json['filename'][:-4]
+                        # Get the last block in the blockchain
+                        folder_path = './blockchain/*'
+                        files = glob.glob(folder_path)
+                        sha256hasher = FileHash('sha256')
+                        latest_block = max(files, key=os.path.getctime)
+                        latest_block_hash = sha256hasher.hash_file(latest_block)
+                        domain = str(cert.get_subject().commonName)
 
-                    block_hd = block_header(requestor_name, latest_block)
+                        update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain)
 
-                    print("calculated block header: {}".format(type(block_hd)))
-                    print(block_hd)
-                    print("received block header: {}",format(type(msg_json['message'])))
-                    print(msg_json['message'])
+                        block_hd = block_header(requestor_name, latest_block)
 
-                    block_hd['Timestamp'] = ''
-                    block_recvd = msg_json['message']
-                    block_recvd['Timestamp'] = ''
-                    ##### Validate without timestap!!!!
+                        print("calculated block header: {}".format(type(block_hd)))
+                        print(block_hd)
+                        print("received block header: {}",format(type(msg_json['message'])))
+                        print(msg_json['message'])
+
+                        block_hd['Timestamp'] = ''
+                        block_recvd = msg_json['message']
+                        block_recvd['Timestamp'] = ''
+                        ##### Validate without timestap!!!!
                     
-                    if block_hd == block_recvd:
-                        print("same block header, valid block")
-                        block_recvd['Timestamp'] = original_header_timestamp
-                        vote = True
-                        APPROVE_VOTES += 1
+                        if block_hd == block_recvd:
+                            print("same block header, valid block")
+                            block_recvd['Timestamp'] = original_header_timestamp
+                            vote = True
+                            APPROVE_VOTES += 1
+                        else:
+                            print("Invalid block")
                     else:
-                        print("Invalid block")
+                        print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
                 else:
-                    print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
+                    print("Invalid request, {} has an existing Certificate in the blockchain".format(cert.get_subject().commonName))
             else:
-                print("Invalid request, {} has an existing Certificate in the blockchain".format(cert.get_subject().commonName))
+                print("issuer key does not match validator key in dict")
 
 
         except Exception as error:
@@ -558,10 +563,37 @@ def blockchain_action(msg_json):
 
             if SELECTED == True:
                 print("Sending certificate to requestor")
-                unicast(requestor,"Sending certificate", requestor + ".crt","recv_cert")
+                unicast(requestor, header, requestor + ".crt","recv_cert")
+                #time.sleep(6)
+                #print("Sending new block to the network")
+                #broadcast(header, "","recv_block")
 
         else:
             print("Not enough approval votes to add block")
+
+    elif msg_json['bcaction'] == "confirm_cert":
+        folder_path = './blockchain/*'
+        files = glob.glob(folder_path)
+        sha256hasher = FileHash('sha256')
+        latest_block = max(files, key=os.path.getctime)
+
+        f = open(latest_block, "r")
+        block_data = f.read()
+        f.close()
+        block_json = json.loads(block_data)
+
+        print("Sending new block to the network")
+        broadcast(block_json, "","recv_block")
+
+    elif msg_json['bcaction'] == "req_Merkle":
+        Merkle_proof = []
+        print("Generating Merkle proof for: {}".format(msg_json["message"]))
+        certs_mtree = MerkleTree(CERTS_HASH_LIST)
+        proof = certs_mtree.proof(msg_json["message"])
+        Merkle_proof.append(str(CERTS_HASH_LIST))
+        Merkle_proof.append(str(proof))
+        time.sleep(1)
+        unicast(msg_json["name"], Merkle_proof, "", "recv_proof")
 
 
 
@@ -680,7 +712,7 @@ if __name__ == '__main__':
     network()
     time.sleep(2)
 
-    print("test line 419, validators list: {}".format(VALIDATORS_LIST))
+    print("Checking for other validators...")
 
     for val in VALIDATORS_LIST:
         print("iterating validators list: {}".format(val))
@@ -690,6 +722,7 @@ if __name__ == '__main__':
             time.sleep(1)
             #add_validator_key(val)
             #time.sleep(1)
+    print("OK")
 
     #print("Validator:")
     #print(VALIDATORS_DICT)
