@@ -36,11 +36,15 @@ def receive_msg():
                 print(msg_json)
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
+                if msg_json['bcaction'] != '':    
+                    blockchain_action(msg_json)
 
             elif msg_json['net_action'] == 'broadcast()':
                 print(msg_json)
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
+                if msg_json['bcaction'] != '':    
+                    blockchain_action(msg_json)
 
         except OSError as error:
             return error
@@ -170,6 +174,15 @@ def name(name):
     }
 
     send_msg(payload)
+
+def blockchain_action(msg_json):     
+    if msg_json["bcaction"] == "recv_block":
+        header = msg_json['message']
+        json_object = json.dumps(header, indent=4)
+        f = open("./blockchain/last_block.json", "w")
+        f.write(json_object)
+        f.close()
+        print("last block added successfully")
 
 def menu():
     selected = 0
