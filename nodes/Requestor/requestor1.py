@@ -7,6 +7,9 @@ import json
 import time
 from OpenSSL import crypto
 import hashlib
+from merkly.mtree import MerkleTree
+from filehash import FileHash
+import ast
 
 def receive_msg():
     while True:
@@ -63,10 +66,10 @@ def recvfile(filename):
     done = False
     file_bytes = b""
     while not done:
-        print('control test')
+        #print('control test')
         bytes_read = client_socket.recv(BUFFERSIZE)
         #print('bytes read: {}'.format(bytes_read))
-        print('terminate signal: {}'.format(bytes_read[-2:]))
+        #print('terminate signal: {}'.format(bytes_read[-2:]))
         #print('file bytes: {}'.format(file_bytes))
         file_bytes += bytes_read
         if bytes_read[-2:] == b"<>":
@@ -76,7 +79,7 @@ def recvfile(filename):
             #file_bytes += bytes_read
             print('receiving data...')
     file_bytes = file_bytes[:-2]
-    print(file_bytes)
+    #print(file_bytes)
     fd.write(file_bytes)
         #else:
         #    # write to the file the bytes we just received
@@ -91,7 +94,7 @@ def sendfile(filename):
     while True:
         # read the bytes from the file
         bytes_read = fd.read()
-        print(bytes_read)
+        #print(bytes_read)
         if not bytes_read:
             # file transmitting is done
             print('file completely read')
@@ -182,15 +185,66 @@ def name(name):
 
     send_msg(payload)
 
+#####################################################################################################################################
+### Blockchain handling functions
+#####################################################################################################################################
+
 def blockchain_action(msg_json):
     if msg_json["bcaction"] == "recv_cert":
-        time.sleep(1)
+        time.sleep(3)
         req_cert(msg_json['name'])
+
+    elif msg_json["bcaction"] == "recv_block":
+        header = msg_json['message']
+        json_object = json.dumps(header, indent=4)
+        f = open("./blockchain/last_block.json", "w")
+        f.write(json_object)
+        f.close()
+        print("last block added successfully")
+
+        sha256hasher = FileHash('sha256')
+        cert_hash = sha256hasher.hash_file(NAME + ".crt")
+        unicast(msg_json['name'], cert_hash, "", "req_Merkle")
+
+    elif msg_json['bcaction'] == "recv_proof":
+        cert_hash_list = msg_json["message"][0]
+        cert_hash_list = ast.literal_eval(cert_hash_list)
+        print("Cert hash list: {}".format(cert_hash_list))
+        print("cert hash list type: {}".format(type(cert_hash_list)))
+        proof_str = msg_json["message"][1]
+        
+
+        f = open("./blockchain/last_block.json", "r")
+        data = f.read()
+        f.close()
+        data_json = json.loads(data)
+        read_root = data_json["Certificates_Merkle_root"]
+        certs_mtree = MerkleTree(cert_hash_list)
+        calc_root = certs_mtree.root.hex()
+        
+
+        if read_root == calc_root:
+            sha256hasher = FileHash('sha256')
+            cert_hash = sha256hasher.hash_file(NAME + ".crt")
+            print("Certificate hash: {}".format(cert_hash))
+            calc_proof = certs_mtree.proof(cert_hash)
+            if certs_mtree.verify(calc_proof, cert_hash):
+                if str(calc_proof) == proof_str:
+                    print("Certificate membership in the blockchain validated successfully")
+                else:
+                    print("received proof does not match with calculated proof")
+            else:
+                print("Merkle proof verification for certificate failed")
+        else:
+            print("Merkle roots don't match")
+
+        
+
 
     elif msg_json['bcaction'] == "add_key":
 
         cert_file = NAME + ".crt"
-       
+
         f_cert = open(cert_file, 'r')
         cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
         f_cert.close()
@@ -208,10 +262,14 @@ def blockchain_action(msg_json):
 
         try:
             store_context.verify_certificate()
+            unicast(issuer_validator, "confirming certificate...", "", "confirm_cert")
             print("Valid signature")
         except Exception as error:
             print("Invalid certificate signature")
             print(error)
+
+
+        
             
 def req_cert(name):
     unicast(name, 'Requesting Certificate', '', 'req_cert')
