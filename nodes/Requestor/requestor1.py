@@ -280,20 +280,14 @@ def menu():
 
     while not EXIT:
         time.sleep(0.3)
-        print("\n1. Unicast.\n2. Request Certificate.\n3. Network.\n4. Exit")
+        print("\n1. Revoke Certificate.\n2. Request Certificate.\n3. Network.\n4. Exit")
         selected = input("Selected option: ")
         if int(selected) == 1:
-            #print("Available nodes: ")
-            #network()
-            dest = input("\nType destination node: ")
-            file = input("\nSend file? Y/N: ")
-            if file == "Y":
-                #unicast(dest, 'test', 'test.pem')
-                unicast(dest, 'test', 'test_req1.txt')
-            else:
-                unicast(dest, 'test')
+            print("Sending Revocation request to blockchain network... ")
+            # Legit request
+            broadcast(NAME, NAME +'.crt', 'revoke')
         if int(selected) == 2:
-            print("\Sending CSR request to the blockchain network...")
+            print("Sending CSR request to the blockchain network...")
             # Legit request
             broadcast('Certificate Request', NAME +'.csr', 'issue')
             # Rogue request
