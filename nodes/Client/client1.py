@@ -175,6 +175,10 @@ def name(name):
 
     send_msg(payload)
 
+#####################################################################################################################################
+### Blockchain handling functions
+#####################################################################################################################################
+
 def blockchain_action(msg_json):     
     if msg_json["bcaction"] == "recv_block":
         header = msg_json['message']
@@ -183,6 +187,38 @@ def blockchain_action(msg_json):
         f.write(json_object)
         f.close()
         print("last block added successfully")
+
+    elif msg_json['bcaction'] == "recv_proof":
+        cert_hash_list = msg_json["message"][0]
+        cert_hash_list = ast.literal_eval(cert_hash_list)
+        print("Cert hash list: {}".format(cert_hash_list))
+        print("cert hash list type: {}".format(type(cert_hash_list)))
+        proof_str = msg_json["message"][1]
+        
+
+        f = open("./blockchain/last_block.json", "r")
+        data = f.read()
+        f.close()
+        data_json = json.loads(data)
+        read_root = data_json["Certificates_Merkle_root"]
+        certs_mtree = MerkleTree(cert_hash_list)
+        calc_root = certs_mtree.root.hex()
+        
+
+        if read_root == calc_root:
+            sha256hasher = FileHash('sha256')
+            cert_hash = sha256hasher.hash_file(NAME + ".crt")
+            print("Certificate hash: {}".format(cert_hash))
+            calc_proof = certs_mtree.proof(cert_hash)
+            if certs_mtree.verify(calc_proof, cert_hash):
+                if str(calc_proof) == proof_str:
+                    print("Certificate membership in the blockchain validated successfully")
+                else:
+                    print("received proof does not match with calculated proof")
+            else:
+                print("Merkle proof verification for certificate failed")
+        else:
+            print("Merkle roots don't match")
 
 def menu():
     selected = 0
