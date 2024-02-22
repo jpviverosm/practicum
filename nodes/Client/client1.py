@@ -217,15 +217,18 @@ def blockchain_action(msg_json):
             sha256hasher = FileHash('sha256')
             cert_hash = sha256hasher.hash_file(server + ".crt")
             print("Certificate hash: {}".format(cert_hash))
-            calc_proof = certs_mtree.proof(cert_hash)
-            if certs_mtree.verify(calc_proof, cert_hash):
-                print("Verification passed")
-                if str(calc_proof) == proof_str:
-                    print("Certificate membership in the blockchain validated successfully")
+            try:
+                calc_proof = certs_mtree.proof(cert_hash)
+                if certs_mtree.verify(calc_proof, cert_hash):
+                    print("Verification passed")
+                    if str(calc_proof) == proof_str:
+                        print("Certificate membership in the blockchain validated successfully")
+                    else:
+                        print("received proof does not match with calculated proof")
                 else:
-                    print("received proof does not match with calculated proof")
-            else:
-                print("Merkle proof verification for certificate failed")
+                    print("Merkle proof verification for certificate failed")
+            except:
+                print("Certificate invalid. No membership in the blockchain")
         else:
             print("Merkle roots don't match")
 

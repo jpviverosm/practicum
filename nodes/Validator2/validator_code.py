@@ -563,16 +563,36 @@ def blockchain_action(msg_json):
             APPROVE_VOTES = 0
             print("Consensus achieved, bock added to blockchain successfully")
 
+            if SELECTED == True:
+                #print("Sending certificate to requestor")
+                #unicast(requestor, header, requestor + ".crt","recv_cert")
+                time.sleep(5)
+                print("Sending new block to the network")
+                broadcast(header, "","recv_block")
+                SELECTED = False
+            else:
+                print("Not selected")
+
+            '''
             if requestor != "":
                 if SELECTED == True:
-                    print("Sending certificate to requestor")
-                    unicast(requestor, header, requestor + ".crt","recv_cert")
-                    #time.sleep(6)
-                    #print("Sending new block to the network")
-                    #broadcast(header, "","recv_block")
+                    #print("Sending certificate to requestor")
+                    #unicast(requestor, header, requestor + ".crt","recv_cert")
+                    time.sleep(3)
+                    print("Sending new block to the network")
+                    broadcast(header, "","recv_block")
+                    SELECTED = False
+                else:
+                    print("Not selected")
+            else:
+                print("Requestor empty")
+            '''
 
         else:
             print("Not enough approval votes to add block")
+
+    elif msg_json['bcaction'] == "issued_cert":
+        unicast(msg_json['name'], "Sending issued certificate", msg_json['name'] + ".crt","recv_cert")
 
     elif msg_json['bcaction'] == "confirm_cert":
         folder_path = './blockchain/*'
@@ -626,6 +646,7 @@ def blockchain_action(msg_json):
         print("Validator{} has been selected to revoke certificate".format(selected_val))
 
         if selected_val == VAL_NUM:
+            SELECTED = True
             print("Issued domains dict: {}".format(ISSUED_DOMAINS))
             f_cert = open(cert_file, 'r')
             cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
@@ -657,7 +678,7 @@ def blockchain_action(msg_json):
                     for val in VALIDATORS_LIST:
                         if val != NAME:
                             unicast(val, msg, "", 'attest_revocation')
-                            time.sleep(0.5)
+                            time.sleep(1)
 
                 else:
                     print("Certificate hash not found on Certificates Hash List")

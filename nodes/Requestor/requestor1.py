@@ -194,6 +194,7 @@ def blockchain_action(msg_json):
         time.sleep(3)
         req_cert(msg_json['name'])
 
+    ### Add check if the new block has a hash for new cert or not, if not don't request the certificate
     elif msg_json["bcaction"] == "recv_block":
         header = msg_json['message']
         json_object = json.dumps(header, indent=4)
@@ -202,12 +203,17 @@ def blockchain_action(msg_json):
         f.close()
         print("last block added successfully")
 
+        if header['Current_Cert_Hash'] != "":
+            unicast(msg_json['name'], "Requesting issued certificate", "", "issued_cert")
+
+        '''
         sha256hasher = FileHash('sha256')
         cert_hash = sha256hasher.hash_file(NAME + ".crt")
         msg = []
         msg.append(cert_hash)
         msg.append(NAME)
         unicast(msg_json['name'], msg, "", "req_Merkle")
+        '''
 
     elif msg_json['bcaction'] == "recv_proof":
         cert_hash_list = msg_json["message"][0]
@@ -266,8 +272,15 @@ def blockchain_action(msg_json):
 
         try:
             store_context.verify_certificate()
-            unicast(issuer_validator, "confirming certificate...", "", "confirm_cert")
             print("Valid signature")
+            #unicast(issuer_validator, "confirming certificate...", "", "confirm_cert")
+            sha256hasher = FileHash('sha256')
+            cert_hash = sha256hasher.hash_file(cert_file)
+            msg = []
+            msg.append(cert_hash)
+            msg.append(NAME)
+            unicast(issuer_validator, msg, "", "req_Merkle")
+            
         except Exception as error:
             print("Invalid certificate signature")
             print(error)
