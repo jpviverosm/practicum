@@ -1,11 +1,11 @@
 {
     "Block_num": "2",
-    "Timestamp": "1708471794.5715125",
+    "Timestamp": "1708558096.9441504",
     "Previous_block_hash": "1e3701b56866e05f1634e575577d7a4229cf9d018d76fbd4341b3267e798a61e",
-    "Certificates_Merkle_root": "de21a76c68f1d346329b447168c2e60ec2f9f158c45aa24fc74a6daf2c281dc9",
+    "Certificates_Merkle_root": "ef5f7088d90349c753aae5870df86e5a685e97ff9eda010f7f6ad5ce6ca2a3f2",
     "Transactions_Merkle_root": "",
-    "Validator_Merkle_root": "6328f6e832238463367e0c6e7a7bcc98b0e7bf5d1012134405ac9cca091ba235",
-    "Issued_domains_Merkle_root": "",
+    "Validator_Merkle_root": "0cce3c832608bbb500061a806e26bae269c97eeac4cfce7d2bc86d037ba25ce2",
+    "Issued_domains_Merkle_root": "6328f6e832238463367e0c6e7a7bcc98b0e7bf5d1012134405ac9cca091ba235",
     "Current_Cert_Merkle_proof": "[Node(09e2cac044b28199e3ff14c8d948880df58d54f8fccbb04dbdf3ea860af89863, Side.LEFT)]",
-    "Current_Cert_Hash": "0dcd947085d30467b8bb757667689206dcd725729a7bdb12922a749b3fbd6ef4"
+    "Current_Cert_Hash": "60ff1cf8a5fa222039dc9ef30aa8986de1bd75737718c6d1321ce595d0ede177"
 }

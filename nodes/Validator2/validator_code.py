@@ -590,11 +590,17 @@ def blockchain_action(msg_json):
 
     elif msg_json['bcaction'] == "req_Merkle":
         Merkle_proof = []
-        print("Generating Merkle proof for: {}".format(msg_json["message"]))
+        cert_hash = msg_json["message"][0]
+        owner = msg_json["message"][1]
+        print("Generating Merkle proof for: {}".format(cert_hash))
         certs_mtree = MerkleTree(CERTS_HASH_LIST)
-        proof = certs_mtree.proof(msg_json["message"])
+        try:
+            proof = certs_mtree.proof(cert_hash)
+        except:
+            proof = "Invalid"
         Merkle_proof.append(str(CERTS_HASH_LIST))
         Merkle_proof.append(str(proof))
+        Merkle_proof.append(owner)
         time.sleep(1)
         unicast(msg_json["name"], Merkle_proof, "", "recv_proof")
 
@@ -773,7 +779,7 @@ def block_header(requestor_name, latest_block):
 
     # Determine Issued domains list Merkle root
     domains_mtree = MerkleTree(list(ISSUED_DOMAINS.keys()))
-    header["Validator_Merkle_root"] = domains_mtree.root.hex()
+    header["Issued_domains_Merkle_root"] = domains_mtree.root.hex()
 
     # Determine current issued certificate proof
     if requestor_name != "":

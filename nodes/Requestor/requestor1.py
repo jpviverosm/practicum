@@ -204,7 +204,10 @@ def blockchain_action(msg_json):
 
         sha256hasher = FileHash('sha256')
         cert_hash = sha256hasher.hash_file(NAME + ".crt")
-        unicast(msg_json['name'], cert_hash, "", "req_Merkle")
+        msg = []
+        msg.append(cert_hash)
+        msg.append(NAME)
+        unicast(msg_json['name'], msg, "", "req_Merkle")
 
     elif msg_json['bcaction'] == "recv_proof":
         cert_hash_list = msg_json["message"][0]
@@ -238,7 +241,8 @@ def blockchain_action(msg_json):
         else:
             print("Merkle roots don't match")
 
-        
+    elif msg_json['bcaction'] == "req_cert":
+        unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
 
 
     elif msg_json['bcaction'] == "add_key":
@@ -280,18 +284,19 @@ def menu():
 
     while not EXIT:
         time.sleep(0.3)
-        print("\n1. Revoke Certificate.\n2. Request Certificate.\n3. Network.\n4. Exit")
+        print("\n1. Request Certificate.\n2. Revoke Certificate.\n3. Network.\n4. Exit")
         selected = input("Selected option: ")
         if int(selected) == 1:
-            print("Sending Revocation request to blockchain network... ")
-            # Legit request
-            broadcast(NAME, NAME +'.crt', 'revoke')
-        if int(selected) == 2:
             print("Sending CSR request to the blockchain network...")
             # Legit request
             broadcast('Certificate Request', NAME +'.csr', 'issue')
             # Rogue request
             #broadcast('Certificate Request', NAME +'b.csr', 'issue')
+        if int(selected) == 2:
+            print("Sending Revocation request to blockchain network... ")
+            # Legit request
+            broadcast(NAME, NAME +'.crt', 'revoke')
+        
 
         if int(selected) == 3:
             network()

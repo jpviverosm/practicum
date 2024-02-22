@@ -5,6 +5,10 @@ import sys
 import os
 import json
 import time
+from filehash import FileHash
+from merkly.mtree import MerkleTree
+from OpenSSL import crypto
+import ast
 
 def receive_msg():
     while True:
@@ -129,6 +133,7 @@ def unicast(destination, message = '', filename = '', bcaction = ''):
     if filename != '':
         fileflag = True
     payload = {
+        'name': NAME,
         'net_action': 'unicast()',
         'bcaction': bcaction,
         'file': fileflag,
@@ -147,6 +152,7 @@ def broadcast(message = '', filename = '', bcaction = ''):
     if filename != '':
         fileflag = True
     payload = {
+        'name': NAME,
         'net_action': 'broadcast()',
         'bcaction': bcaction,
         'file': fileflag,
@@ -194,6 +200,7 @@ def blockchain_action(msg_json):
         print("Cert hash list: {}".format(cert_hash_list))
         print("cert hash list type: {}".format(type(cert_hash_list)))
         proof_str = msg_json["message"][1]
+        server = msg_json["message"][2]
         
 
         f = open("./blockchain/last_block.json", "r")
@@ -203,14 +210,16 @@ def blockchain_action(msg_json):
         read_root = data_json["Certificates_Merkle_root"]
         certs_mtree = MerkleTree(cert_hash_list)
         calc_root = certs_mtree.root.hex()
-        
+        print("Checkpoint, Calc root: {}, read root: {}".format(calc_root, read_root))
 
         if read_root == calc_root:
+            print("Checking")
             sha256hasher = FileHash('sha256')
-            cert_hash = sha256hasher.hash_file(NAME + ".crt")
+            cert_hash = sha256hasher.hash_file(server + ".crt")
             print("Certificate hash: {}".format(cert_hash))
             calc_proof = certs_mtree.proof(cert_hash)
             if certs_mtree.verify(calc_proof, cert_hash):
+                print("Verification passed")
                 if str(calc_proof) == proof_str:
                     print("Certificate membership in the blockchain validated successfully")
                 else:
@@ -220,24 +229,40 @@ def blockchain_action(msg_json):
         else:
             print("Merkle roots don't match")
 
+
+
+    elif msg_json['bcaction'] == "add_key":
+
+        cert_file = msg_json['filename']
+        server = msg_json['name']
+
+        f_cert = open(cert_file, 'r')
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
+        f_cert.close()
+
+        issuer = cert.get_issuer().commonName
+        print("Issuer: {}".format(issuer))
+
+        sha256hasher = FileHash('sha256')
+        cert_hash = sha256hasher.hash_file(cert_file)
+        print("cert hash: {}".format(cert_hash))
+        msg = []
+        msg.append(cert_hash)
+        msg.append(server)
+        unicast(issuer, msg, "", "req_Merkle")
+
 def menu():
     selected = 0
     #exit = False
 
     while not EXIT:
         time.sleep(0.3)
-        print("\n1. Unicast.\n2. Broadcast.\n3. Network.\n4. Exit")
+        print("\n1. Connect to server.\n2. Broadcast.\n3. Network.\n4. Exit")
         selected = input("Selected option: ")
         if int(selected) == 1:
-            #print("Available nodes: ")
-            #network()
-            dest = input("\nType destination node: ")
-            file = input("\nSend file? Y/N: ")
-            if file == "Y":
-                #unicast(dest, 'test', 'test.pem')
-                unicast(dest, 'test', 'test_client1.txt')
-            else:
-                unicast(dest, 'test')
+            server = input("Prvide the name of server: ")
+            unicast(server, "Requesting Certificate", "", "req_cert")
+            
         if int(selected) == 2:
             print("\nBroadcasting")
             file = input("\nSend file? Y/N: ")
