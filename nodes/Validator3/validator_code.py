@@ -15,6 +15,7 @@ import hashlib
 import warnings
 import math
 from colorama import Fore, Back, Style
+from urllib import request
 
 
 #####################################################################################################################################
@@ -274,7 +275,7 @@ def create_own_cert():
     VALIDATORS_DICT[NAME] = pub_key
     VALIDATORS_LIST.append(NAME)
 
-def issue_cert(csr_file, requestor_name, latest_block_hash):
+def issue_cert(csr_file, requestor_name):
     global CERTS_HASH_LIST
     global ISSUED_DOMAINS
 
@@ -314,35 +315,24 @@ def issue_cert(csr_file, requestor_name, latest_block_hash):
     pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
     domain = str(cert.get_subject().commonName)
 
-    update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain)
-    '''
-    # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
-    if len(CERTS_HASH_LIST) < 1:
-        CERTS_HASH_LIST.append(latest_block_hash)
+    update_dicts(requestor_name, pub_key_hash, domain)
 
-    CERTS_HASH_LIST.append(sha256hasher.hash_file(requestor_name + ".crt"))
-
-    # add domain to the issued domains list
-    # need at least 2 elements in list to build the merkle tree, if list is empty, add "Genesis" as the first domain in list
-    if len(ISSUED_DOMAINS.keys()) < 1:
-        ISSUED_DOMAINS.update({"Genesis": hashlib.sha256("Genesis".encode()).hexdigest()})
-
-    #ISSUED_DOMAINS.append(str(cert.get_subject().commonName))
-    #print(ISSUED_DOMAINS)
-        
-    pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
-        
-    #ISSUED_DOMAINS.update({str(cert.get_subject().commonName): csr.get_pubkey()})
-    ISSUED_DOMAINS.update({str(cert.get_subject().commonName): pub_key_hash.hexdigest()})
-    print(ISSUED_DOMAINS)
-    '''
 
     print(Fore.LIGHTYELLOW_EX + 'Certificate created successfully')
 
 
-def update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain):
+def update_dicts(requestor_name, pub_key_hash, domain):
     # add cert hash to the hash list
     sha256hasher = FileHash('sha256')
+    # Get the last block in the blockchain
+    folder_path = './blockchain/*'
+    #file_type = r'\*txt'
+    files = glob.glob(folder_path)
+    latest_block = max(files, key=os.path.getctime)
+
+    # Get the hash of the last block
+    latest_block_hash = sha256hasher.hash_file(latest_block)
+
     # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
     if len(CERTS_HASH_LIST) < 1:
         CERTS_HASH_LIST.append(latest_block_hash)
@@ -376,6 +366,41 @@ def extract_public_key(cert):
 def req_cert(name):
     unicast(name, 'Requesting Certificate', '', 'req_cert')
 
+def generate_challenge():
+    rand_list = []
+    rand_list.append(random.randint(50000000, 100000000))
+    rand_list.append(random.randint(50000000, 100000000))
+    rand_list.append(random.randint(50000000, 100000000))
+    rand_list.append(random.randint(50000000, 100000000))
+    rand_list.append(random.randint(50000000, 100000000))
+
+    f = open("challenge.txt", "w")
+    for r in rand_list:
+        f.write(str(r) + "\n")
+    f.close()
+
+def dcv(common_name):
+    res = False
+    remote_url = 'http://' + common_name + ':8080/challenge'
+    # Define the local filename to save data
+    local_file = 'challenge_copy.txt'
+    # Download remote and save locally
+    print("requesting challenge file to {}".format(remote_url))
+    try:
+        request.urlretrieve(remote_url, local_file)
+        # Get the hash of the original challenge
+        sha256hasher = FileHash('sha256')
+        orig_chall_hash = sha256hasher.hash_file("challenge.txt")
+        # Get the hash of the received challenge
+        recv_chall_hash = sha256hasher.hash_file(local_file)
+        if orig_chall_hash == recv_chall_hash:
+            res = True
+    except:
+        print("Challenge file not fount in: {}".format(remote_url))
+
+    
+    return res
+
 
 #####################################################################################################################################
 ### Blockchain handling functions
@@ -387,11 +412,81 @@ def blockchain_action(msg_json):
     global APPROVE_VOTES
     global SELECTED
 
-    if msg_json['bcaction'] == "issue":
-        ### insert call to DCV
+
+    if msg_json['bcaction'] == "req_cert_issuance":
+        # Get the last block in the blockchain
+        folder_path = './blockchain/*'
+        #file_type = r'\*txt'
+        files = glob.glob(folder_path)
+        latest_block = max(files, key=os.path.getctime)
+
+        # Get the hash of the last block
+        sha256hasher = FileHash('sha256')
+        latest_block_hash = sha256hasher.hash_file(latest_block)
+        latest_block_hash_int = int(latest_block_hash, 16)
+
+        print("last block hash: {}".format(latest_block_hash))
+        print("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
+
+        selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
+        print("Validator{} has been selected to issue certificate".format(selected_val))
+
+        # Select validator to issue certificate
+        #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
+        if selected_val == VAL_NUM:
+            SELECTED = True
+            generate_challenge()
+            unicast(msg_json['name'], "dcv challenge", "challenge.txt", "challenge")
+
+    elif msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
         requestor_name = msg_json['name']
 
+        f_csr = open(csr_file, 'r')
+        csr = crypto.load_certificate_request(crypto.FILETYPE_PEM, f_csr.read())
+        pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
+        f_csr.close()
+
+        print("csr loaded")
+
+        if csr.get_subject().commonName not in ISSUED_DOMAINS.keys():
+            print("valid subject common name")
+            if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
+                print("valid public key")
+                print(csr.get_subject().commonName)
+                if dcv(csr.get_subject().commonName):
+                    print("Domain Control Validation successful, issuing certificate...")
+                    issue_cert(csr_file, requestor_name)
+                    # Get the last block in the blockchain
+                    folder_path = './blockchain/*'
+                    #file_type = r'\*txt'
+                    files = glob.glob(folder_path)
+                    latest_block = max(files, key=os.path.getctime)
+                    block_hd = block_header(requestor_name, latest_block)
+            
+                    #print("block header type: {}".format(type(block_hd)))
+                    json_object = json.dumps(block_hd, indent=4)
+ 
+                    # new proposed block
+                    ###f = open("block" + block_hd["Block_num"] + ".json", "w")
+                    ###f.write(json_object)
+                    ###f.close()
+
+                    time.sleep(3)
+
+                    # send the header and certificate to other validators for attestation
+                    for val in VALIDATORS_LIST:
+                        if val != NAME:
+                            unicast(val, block_hd, requestor_name + '.crt', 'attest')
+                            time.sleep(1)
+                else:
+                    print("Domain Control Validation failed")
+            else:
+                print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
+        else:
+            print("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
+
+        '''
         # Get the last block in the blockchain
         folder_path = './blockchain/*'
         #file_type = r'\*txt'
@@ -421,30 +516,33 @@ def blockchain_action(msg_json):
 
             if csr.get_subject().commonName not in ISSUED_DOMAINS.keys():
                 if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
-                    issue_cert(csr_file, requestor_name, latest_block_hash)
-                    block_hd = block_header(requestor_name, latest_block)
+                    if dcv(csr.get_subject().commonName):
+                        print("Domain Control Validation successful, issuing certificate...")
+                        issue_cert(csr_file, requestor_name, latest_block_hash)
+                        block_hd = block_header(requestor_name, latest_block)
             
-                    #print("block header type: {}".format(type(block_hd)))
-                    json_object = json.dumps(block_hd, indent=4)
+                        #print("block header type: {}".format(type(block_hd)))
+                        json_object = json.dumps(block_hd, indent=4)
  
-                    # new proposed block
-                    ###f = open("block" + block_hd["Block_num"] + ".json", "w")
-                    ###f.write(json_object)
-                    ###f.close()
+                        # new proposed block
+                        ###f = open("block" + block_hd["Block_num"] + ".json", "w")
+                        ###f.write(json_object)
+                        ###f.close()
 
-                    time.sleep(3)
+                        time.sleep(3)
 
-                    # send the header and certificate to other validators for attestation
-                    for val in VALIDATORS_LIST:
-                        if val != NAME:
-                            unicast(val, block_hd, requestor_name + '.crt', 'attest')
-                            time.sleep(1)
-
+                        # send the header and certificate to other validators for attestation
+                        for val in VALIDATORS_LIST:
+                            if val != NAME:
+                                unicast(val, block_hd, requestor_name + '.crt', 'attest')
+                                time.sleep(1)
+                    else:
+                        print("Domain Control Validation failed")
                 else:
                     print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
             else:
                 print("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
-
+        '''
     
 
     elif msg_json['bcaction'] == "req_cert":
@@ -496,7 +594,7 @@ def blockchain_action(msg_json):
                         latest_block_hash = sha256hasher.hash_file(latest_block)
                         domain = str(cert.get_subject().commonName)
 
-                        update_dicts(requestor_name, latest_block_hash, pub_key_hash, domain)
+                        update_dicts(requestor_name, pub_key_hash, domain)
 
                         block_hd = block_header(requestor_name, latest_block)
 
@@ -795,8 +893,11 @@ def block_header(requestor_name, latest_block):
     header["Certificates_Merkle_root"] = certs_mtree.root.hex()
 
     # Determine validators list Merkle root
-    validators_mtree = MerkleTree(VALIDATORS_LIST)
-    header["Validator_Merkle_root"] = validators_mtree.root.hex()
+    try:
+        validators_mtree = MerkleTree(VALIDATORS_LIST)
+        header["Validator_Merkle_root"] = validators_mtree.root.hex()
+    except:
+        print("Not enough number of validators...")
 
     # Determine Issued domains list Merkle root
     domains_mtree = MerkleTree(list(ISSUED_DOMAINS.keys()))
