@@ -1,8 +1,8 @@
 {
     "Block_num": "3",
-    "Timestamp": "1708989222.9211626",
-    "Previous_block_hash": "91f9a837e6d2b82416058b102478ee79e218bc542a9ce9390089a041e1e7938b",
-    "Certificates_Merkle_root": "7ec07dfe1aaaff6076adb9e6b210b27a29aa677b8da53f17f21142b56bc306e3",
+    "Timestamp": "1709072693.6430752",
+    "Previous_block_hash": "364743d08a0394019e87813aca9629749af57583b44d54637852069459268688",
+    "Certificates_Merkle_root": "e80c46b6dc880bf3538c0805a0a44f974f6f546763e90624e31d2c9550b2d177",
     "Transactions_Merkle_root": "",
     "Validator_Merkle_root": "0cce3c832608bbb500061a806e26bae269c97eeac4cfce7d2bc86d037ba25ce2",
     "Issued_domains_Merkle_root": "7af6e58869c5f0894fa9fc4cf16db4df55b149e5ae5378b154d2c199cdb77530",

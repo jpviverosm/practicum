@@ -17,6 +17,21 @@ import math
 from colorama import Fore, Back, Style
 from urllib import request
 
+def prRed(skk): print("\033[91m {}\033[00m" .format(skk))
+  
+def prGreen(skk): print("\033[92m {}\033[00m" .format(skk))
+  
+def prYellow(skk): print("\033[93m {}\033[00m" .format(skk))
+  
+def prLightPurple(skk): print("\033[94m {}\033[00m" .format(skk))
+  
+def prPurple(skk): print("\033[95m {}\033[00m" .format(skk))
+  
+def prCyan(skk): print("\033[96m {}\033[00m" .format(skk))
+  
+def prLightGray(skk): print("\033[97m {}\033[00m" .format(skk))
+ 
+def prBlack(skk): print("\033[98m {}\033[00m" .format(skk))
 
 #####################################################################################################################################
 ### Communication handling functions
@@ -34,18 +49,18 @@ def receive_msg():
 
 
             if msg_json['net_action'] == 'confirm_name':
-                print(Fore.BLUE + 'Name: {}'.format(msg_json['name']))
+                prCyan('Name: {}'.format(msg_json['name']))
 
             elif msg_json['net_action'] == 'new_node':
                 if msg_json['client_name'] != NAME:
-                    print(Fore.BLUE + '{} has joined the network'.format(msg_json['client_name']))
+                    prCyan('{} has joined the network'.format(msg_json['client_name']))
 
                     if msg_json['validator'] == True:
                         if VALIDATORS_LIST:
                             #print("Control point printing validators list: {}".format(VALIDATORS_LIST))
                             if msg_json['client_name'] not in VALIDATORS_LIST:
                                 time.sleep(VAL_NUM)
-                                print(Fore.LIGHTYELLOW_EX + "adding {} to the validators list".format(msg_json['client_name']))
+                                prYellow("adding {} to the validators list".format(msg_json['client_name']))
                                 VALIDATORS_LIST.append(msg_json['client_name'])
                                 req_cert(msg_json['client_name'])
 
@@ -58,15 +73,17 @@ def receive_msg():
                 VALIDATORS_LIST = msg_json['validators']                
 
                 #print(BCNETWORKNUM)
-                print(Fore.BLUE + "Blockchain network nodes: {}".format(BCNETWORKNODES))
-                print(Fore.BLUE + "Validators list: {}". format(VALIDATORS_LIST))
+                prCyan("Blockchain network nodes: {}".format(BCNETWORKNODES))
+                prCyan("Validators list: {}". format(VALIDATORS_LIST))
                 
 
             elif msg_json['net_action'] == 'confirm_exit':
-                print(Fore.BLUE + '{} has left the network'.format(msg_json['client_leaving']))
+                prCyan('{} has left the network'.format(msg_json['client_leaving']))
 
             elif msg_json['net_action'] == 'unicast()':
-                print(msg_json)
+                print("\n")
+                prPurple(msg_json)
+                print("\n")
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
 
@@ -74,7 +91,9 @@ def receive_msg():
                     blockchain_action(msg_json)
 
             elif msg_json['net_action'] == 'broadcast()':
-                print(msg_json)
+                print("\n")
+                prPurple(msg_json)
+                print("\n")
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
 
@@ -102,19 +121,21 @@ def recvfile(filename):
         file_bytes += bytes_read
         if bytes_read[-2:] == b"<>":
             done = True
-            print(Fore.LIGHTYELLOW_EX + 'tranmission complete')
+            prYellow('tranmission complete')
         else:
             #file_bytes += bytes_read
-            print(Fore.LIGHTYELLOW_EX + 'receiving data...')
+            prYellow('receiving data...')
     file_bytes = file_bytes[:-2]
+    print("\n")
     print(file_bytes)
+    print("\n")
     fd.write(file_bytes)
         #else:
         #    # write to the file the bytes we just received
         #    print('receiving data...')
         #    fd.write(bytes_read)
         #    bytes_read = client.recv(BUFFERSIZE)
-    print(Fore.LIGHTYELLOW_EX + 'closing file')
+    prYellow('closing file')
     fd.close()
     
 
@@ -123,18 +144,20 @@ def sendfile(filename):
     while True:
         # read the bytes from the file
         bytes_read = fd.read()
-        print(bytes_read)
+        #print("\n")
+        #print(bytes_read)
+        #print("\n")
         if not bytes_read:
             # file transmitting is done
-            print(Fore.LIGHTYELLOW_EX + 'file completely read')
+            prYellow('file completely read')
             break
         while bytes_read:
             # we use sendall to assure transimission in 
             # busy networks
-            print(Fore.LIGHTYELLOW_EX + 'sending data...')
+            prYellow('sending data...')
             client_socket.sendall(bytes_read)
             bytes_read = fd.read()
-    print(Fore.LIGHTYELLOW_EX + 'closing file')
+    prYellow('closing file')
     fd.close()
     client_socket.send(bytes("<>", "utf-8"))
 
@@ -261,13 +284,13 @@ def create_own_cert():
     f_cert = open(NAME+'.crt', "wt")
     f_cert.write(crypto.dump_certificate(crypto.FILETYPE_PEM, own_cert).decode("utf-8"))
     f_cert.close()
-    print(Fore.LIGHTYELLOW_EX + "Validator Certificate generated successfully")
+    prGreen("Validator Certificate generated successfully")
 
     # Save private key
     f_key =  open(NAME+'.key', "wt")
     f_key.write(crypto.dump_privatekey(crypto.FILETYPE_PEM, own_key).decode("utf-8"))
     f_key.close()
-    print(Fore.LIGHTYELLOW_EX + "Validator Key generated successfully")
+    prGreen("Validator Key generated successfully")
 
     # add itself to the vaidators dictionary
     #pub_key = crypto.dump_publickey(crypto.FILETYPE_PEM, own_key).decode("utf-8")
@@ -318,7 +341,7 @@ def issue_cert(csr_file, requestor_name):
     update_dicts(requestor_name, pub_key_hash, domain)
 
 
-    print(Fore.LIGHTYELLOW_EX + 'Certificate created successfully')
+    prGreen('Certificate created successfully')
 
 
 def update_dicts(requestor_name, pub_key_hash, domain):
@@ -357,7 +380,7 @@ def update_dicts(requestor_name, pub_key_hash, domain):
 
 
 def extract_public_key(cert):
-    print('Extracting public key for {}'.format(cert))
+    prYellow('Extracting public key for {}'.format(cert))
     f = open(cert, "r")
     pub_key = crypto.load_publickey(crypto.FILETYPE_PEM, f.read())
     f.close()
@@ -385,7 +408,7 @@ def dcv(common_name):
     # Define the local filename to save data
     local_file = 'challenge_copy.txt'
     # Download remote and save locally
-    print("requesting challenge file to {}".format(remote_url))
+    prYellow("requesting challenge file to {}".format(remote_url))
     try:
         request.urlretrieve(remote_url, local_file)
         # Get the hash of the original challenge
@@ -396,7 +419,7 @@ def dcv(common_name):
         if orig_chall_hash == recv_chall_hash:
             res = True
     except:
-        print("Challenge file not fount in: {}".format(remote_url))
+        prRed("Challenge file not fount in: {}".format(remote_url))
 
     
     return res
@@ -425,11 +448,11 @@ def blockchain_action(msg_json):
         latest_block_hash = sha256hasher.hash_file(latest_block)
         latest_block_hash_int = int(latest_block_hash, 16)
 
-        print("last block hash: {}".format(latest_block_hash))
-        print("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
+        prYellow("last block hash: {}".format(latest_block_hash))
+        prYellow("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
 
         selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
-        print("Validator{} has been selected to issue certificate".format(selected_val))
+        prYellow("Validator{} has been selected to issue certificate".format(selected_val))
 
         # Select validator to issue certificate
         #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
@@ -447,15 +470,15 @@ def blockchain_action(msg_json):
         pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
         f_csr.close()
 
-        print("csr loaded")
+        prGreen("csr loaded")
 
         if csr.get_subject().commonName not in ISSUED_DOMAINS.keys():
-            print("valid subject common name")
+            prGreen("valid subject common name")
             if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
-                print("valid public key")
+                prGreen("valid public key")
                 print(csr.get_subject().commonName)
                 if dcv(csr.get_subject().commonName):
-                    print("Domain Control Validation successful, issuing certificate...")
+                    prGreen("Domain Control Validation successful, issuing certificate...")
                     issue_cert(csr_file, requestor_name)
                     # Get the last block in the blockchain
                     folder_path = './blockchain/*'
@@ -480,11 +503,11 @@ def blockchain_action(msg_json):
                             unicast(val, block_hd, requestor_name + '.crt', 'attest')
                             time.sleep(1)
                 else:
-                    print("Domain Control Validation failed")
+                    prRed("Domain Control Validation failed")
             else:
-                print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
+                prRed("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
         else:
-            print("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
+            prRed("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
 
         '''
         # Get the last block in the blockchain
@@ -575,14 +598,14 @@ def blockchain_action(msg_json):
 
         try:
             store_context.verify_certificate()
-            print("Valid signature")
+            prGreen("Valid signature")
 
             if issuer_pub_key.to_cryptography_key() == VALIDATORS_DICT[issuer_validator].to_cryptography_key():
-                print("Issuer validator key validated matches the key stored in dictionary")
+                prGreen("Issuer validator key validated matches the key stored in dictionary")
 
                 if cert.get_subject().commonName not in ISSUED_DOMAINS.keys():
                     if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
-                        print("valid certificate")
+                        prGreen("valid certificate")
 
                         # Validate new block
                         requestor_name = msg_json['filename'][:-4]
@@ -598,10 +621,13 @@ def blockchain_action(msg_json):
 
                         block_hd = block_header(requestor_name, latest_block)
 
-                        print("calculated block header: {}".format(type(block_hd)))
+                        #prYellow("calculated block header: {}".format(type(block_hd)))
+                        print("\n")
                         print(block_hd)
-                        print("received block header: {}",format(type(msg_json['message'])))
+                        print("\n")
+                        #prYellow("received block header: {}".format(type(msg_json['message'])))
                         print(msg_json['message'])
+                        print("\n")
 
                         block_hd['Timestamp'] = ''
                         block_recvd = msg_json['message']
@@ -609,23 +635,23 @@ def blockchain_action(msg_json):
                         ##### Validate without timestap!!!!
                     
                         if block_hd == block_recvd:
-                            print("same block header, valid block")
+                            prGreen("same block header, valid block")
                             block_recvd['Timestamp'] = original_header_timestamp
                             vote = True
                             APPROVE_VOTES += 1
                         else:
-                            print("Invalid block")
+                            prRed("Invalid block")
                     else:
-                        print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
+                        prRed("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
                 else:
-                    print("Invalid request, {} has an existing Certificate in the blockchain".format(cert.get_subject().commonName))
+                    prRed("Invalid request, {} has an existing Certificate in the blockchain".format(cert.get_subject().commonName))
             else:
-                print("issuer key does not match validator key in dict")
+                prRed("issuer key does not match validator key in dict")
 
 
         except Exception as error:
-            print("Invalid certificate signature")
-            print(error)
+            prRed("Invalid certificate signature")
+            prRed(error)
 
         #send_validators(vote)
         
@@ -659,17 +685,17 @@ def blockchain_action(msg_json):
             f.write(json_object)
             f.close()
             APPROVE_VOTES = 0
-            print("Consensus achieved, bock added to blockchain successfully")
+            prGreen("Consensus achieved, bock added to blockchain successfully")
 
             if SELECTED == True:
                 #print("Sending certificate to requestor")
                 #unicast(requestor, header, requestor + ".crt","recv_cert")
-                time.sleep(5)
-                print("Sending new block to the network")
+                time.sleep(7)
+                prYellow("Sending new block to the network")
                 broadcast(header, "","recv_block")
                 SELECTED = False
-            else:
-                print("Not selected")
+           #else:
+            #    print("Not selected")
 
             '''
             if requestor != "":
@@ -687,7 +713,7 @@ def blockchain_action(msg_json):
             '''
 
         else:
-            print("Not enough approval votes to add block")
+            prYellow("Not enough approval votes to add block")
 
     elif msg_json['bcaction'] == "issued_cert":
         unicast(msg_json['name'], "Sending issued certificate", msg_json['name'] + ".crt","recv_cert")
@@ -703,14 +729,14 @@ def blockchain_action(msg_json):
         f.close()
         block_json = json.loads(block_data)
 
-        print("Sending new block to the network")
+        prYellow("Sending new block to the network")
         broadcast(block_json, "","recv_block")
 
     elif msg_json['bcaction'] == "req_Merkle":
         Merkle_proof = []
         cert_hash = msg_json["message"][0]
         owner = msg_json["message"][1]
-        print("Generating Merkle proof for: {}".format(cert_hash))
+        prYellow("Generating Merkle proof for: {}".format(cert_hash))
         certs_mtree = MerkleTree(CERTS_HASH_LIST)
         try:
             proof = certs_mtree.proof(cert_hash)
@@ -737,11 +763,11 @@ def blockchain_action(msg_json):
         latest_block_hash = sha256hasher.hash_file(latest_block)
         latest_block_hash_int = int(latest_block_hash, 16)
 
-        print("last block hash: {}".format(latest_block_hash))
-        print("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
+        prYellow("last block hash: {}".format(latest_block_hash))
+        prYellow("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
 
         selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
-        print("Validator{} has been selected to revoke certificate".format(selected_val))
+        prYellow("Validator{} has been selected to revoke certificate".format(selected_val))
 
         if selected_val == VAL_NUM:
             SELECTED = True
@@ -754,7 +780,7 @@ def blockchain_action(msg_json):
                 del ISSUED_DOMAINS[cert.get_subject().commonName]
                 if len(ISSUED_DOMAINS.keys()) < 2:
                     ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
-                    print("domain deleted from dictionary")
+                    prGreen("domain deleted from dictionary")
 
                 cert_hash = sha256hasher.hash_file(cert_file)
                 if cert_hash in CERTS_HASH_LIST:
@@ -764,7 +790,7 @@ def blockchain_action(msg_json):
                     if len(CERTS_HASH_LIST) < 2:
                         CERTS_HASH_LIST.append(latest_block_hash)
                     
-                    print("hash list updated successfully")
+                    prGreen("hash list updated successfully")
 
                     block_hd = block_header("", latest_block)
                     time.sleep(3)
@@ -779,9 +805,9 @@ def blockchain_action(msg_json):
                             time.sleep(1)
 
                 else:
-                    print("Certificate hash not found on Certificates Hash List")
+                    prRed("Certificate hash not found on Certificates Hash List")
             else:
-                print("{} not found on valid domains dictionary".format(requestor_name))
+                prRed("{} not found on valid domains dictionary".format(requestor_name))
 
 
     elif msg_json['bcaction'] == "attest_revocation":
@@ -805,7 +831,7 @@ def blockchain_action(msg_json):
             del ISSUED_DOMAINS[domain]
             if len(ISSUED_DOMAINS.keys()) < 2:
                 ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
-                print("domain deleted from dictionary")
+                prGreen("domain deleted from dictionary")
 
             #cert_hash = sha256hasher.hash_file(cert_file)
             if cert_hash in CERTS_HASH_LIST:
@@ -813,11 +839,11 @@ def blockchain_action(msg_json):
                 # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
                 if len(CERTS_HASH_LIST) < 2:
                     CERTS_HASH_LIST.append(latest_block_hash)
-                print("hash list updated successfully")
+                prGreen("hash list updated successfully")
             else:
-                print("Certificate hash not found on list")
+                prRed("Certificate hash not found on list")
         else:
-            print("Domain not found on issued certificates dictionary")
+            prRed("Domain not found on issued certificates dictionary")
 
         block_hd = block_header("", latest_block)
         block_hd['Timestamp'] = ''
@@ -825,12 +851,12 @@ def blockchain_action(msg_json):
         block_recvd['Timestamp'] = ''
 
         if block_hd == block_recvd:
-            print("same block header, valid block")
+            prGreen("same block header, valid block")
             block_recvd['Timestamp'] = original_header_timestamp
             vote = True
             APPROVE_VOTES += 1
         else:
-            print("Invalid block")
+            prRed("Invalid block")
 
         msg = [vote, block_recvd, ""]
         time.sleep(3)
@@ -841,15 +867,16 @@ def blockchain_action(msg_json):
 
 
 def add_validator_key(validator_name):
-    print("adding keys to the validators dictionary")
+    prYellow("adding keys to the validators dictionary")
     f = open(validator_name + '.crt', "r")
     cert = crypto.load_certificate(crypto.FILETYPE_PEM, f.read())
     pub_key = cert.get_pubkey()
     f.close()
     VALIDATORS_DICT[validator_name] = pub_key
-    print("Validator node added successfully")
+    prGreen("Validator node added successfully")
     print("Validators:")
     print(VALIDATORS_DICT)
+    prGreen("ok")
 
 
 def block_header(requestor_name, latest_block):
@@ -897,7 +924,7 @@ def block_header(requestor_name, latest_block):
         validators_mtree = MerkleTree(VALIDATORS_LIST)
         header["Validator_Merkle_root"] = validators_mtree.root.hex()
     except:
-        print("Not enough number of validators...")
+        prRed("Not enough number of validators...")
 
     # Determine Issued domains list Merkle root
     domains_mtree = MerkleTree(list(ISSUED_DOMAINS.keys()))
@@ -906,8 +933,8 @@ def block_header(requestor_name, latest_block):
     # Determine current issued certificate proof
     if requestor_name != "":
         cert_hash = sha256hasher.hash_file(requestor_name + ".crt")
-        print("Cert hash: {}".format(cert_hash))
-        print("Cert hash list: {}".format(CERTS_HASH_LIST))
+        prYellow("Cert hash: {}".format(cert_hash))
+        prYellow("Cert hash list: {}".format(CERTS_HASH_LIST))
         certproof = certs_mtree.proof(cert_hash)
         header["Current_Cert_Merkle_proof"] = str(certproof)
 
@@ -959,17 +986,17 @@ if __name__ == '__main__':
     network()
     time.sleep(2)
 
-    print("Checking for other validators...")
+    prYellow("Checking for other validators...")
 
     for val in VALIDATORS_LIST:
-        print("iterating validators list: {}".format(val))
+        prYellow("iterating validators list: {}".format(val))
         if val != NAME:
-            print("Adding {} to the dictionary".format(val))
+            prYellow("Adding {} to the dictionary".format(val))
             req_cert(val)
             time.sleep(1)
             #add_validator_key(val)
             #time.sleep(1)
-    print("OK")
+    prGreen("OK")
 
     #print("Validator:")
     #print(VALIDATORS_DICT)

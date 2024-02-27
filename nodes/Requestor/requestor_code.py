@@ -12,8 +12,25 @@ from filehash import FileHash
 import ast
 from flask import Flask, send_file
 		
+def prRed(skk): print("\033[91m {}\033[00m" .format(skk))
+  
+def prGreen(skk): print("\033[92m {}\033[00m" .format(skk))
+  
+def prYellow(skk): print("\033[93m {}\033[00m" .format(skk))
+  
+def prLightPurple(skk): print("\033[94m {}\033[00m" .format(skk))
+  
+def prPurple(skk): print("\033[95m {}\033[00m" .format(skk))
+  
+def prCyan(skk): print("\033[96m {}\033[00m" .format(skk))
+  
+def prLightGray(skk): print("\033[97m {}\033[00m" .format(skk))
+ 
+def prBlack(skk): print("\033[98m {}\033[00m" .format(skk))
+
 
 def receive_msg():
+    global BCNETWORKNODES
     while True:
     #while not EXIT:
         if EXIT:
@@ -23,10 +40,10 @@ def receive_msg():
             msg_json = json.loads(msg)
 
             if msg_json['net_action'] == 'confirm_name':
-                print('Name: {}'.format(msg_json['name']))
+                prCyan('Name: {}'.format(msg_json['name']))
 
             elif msg_json['net_action'] == 'new_node':
-                print('{} has joined the network'.format(msg_json['client_name']))
+                prCyan('{} has joined the network'.format(msg_json['client_name']))
 
 
             elif msg_json['net_action'] == 'confirm_list':
@@ -34,13 +51,15 @@ def receive_msg():
                 BCNETWORKNODES = msg_json['real_clients_name']
 
                 #print(BCNETWORKNUM)
-                print(BCNETWORKNODES)
+                prCyan(BCNETWORKNODES)
 
             elif msg_json['net_action'] == 'confirm_exit':
-                print('{} has left the network'.format(msg_json['client_leaving']))
+                prCyan('{} has left the network'.format(msg_json['client_leaving']))
 
             elif msg_json['net_action'] == 'unicast()':
-                print(msg_json)
+                print("\n")
+                prPurple(msg_json)
+                print("\n")
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
 
@@ -48,7 +67,9 @@ def receive_msg():
                     blockchain_action(msg_json)
 
             elif msg_json['net_action'] == 'broadcast()':
-                print(msg_json)
+                print("\n")
+                prPurple(msg_json)
+                print("\n")
                 if msg_json['file'] == True:
                     recvfile(msg_json['filename'])
 
@@ -76,10 +97,10 @@ def recvfile(filename):
         file_bytes += bytes_read
         if bytes_read[-2:] == b"<>":
             done = True
-            print('tranmission complete')
+            prYellow('tranmission complete')
         else:
             #file_bytes += bytes_read
-            print('receiving data...')
+            prYellow('receiving data...')
     file_bytes = file_bytes[:-2]
     #print(file_bytes)
     fd.write(file_bytes)
@@ -88,7 +109,7 @@ def recvfile(filename):
         #    print('receiving data...')
         #    fd.write(bytes_read)
         #    bytes_read = client.recv(BUFFERSIZE)
-    print('closing file')
+    prYellow('closing file')
     fd.close()
 
 def sendfile(filename):
@@ -99,15 +120,15 @@ def sendfile(filename):
         #print(bytes_read)
         if not bytes_read:
             # file transmitting is done
-            print('file completely read')
+            prYellow('file completely read')
             break
         while bytes_read:
             # we use sendall to assure transimission in 
             # busy networks
-            print('sending data...')
+            prYellow('sending data...')
             client_socket.sendall(bytes_read)
             bytes_read = fd.read()
-    print('closing file')
+    prYellow('closing file')
     fd.close()
     client_socket.send(bytes("<>", "utf-8"))
 
@@ -199,9 +220,9 @@ def blockchain_action(msg_json):
     elif msg_json["bcaction"] == "challenge":
         os.rename("./challenge.txt", "./challenge/challenge.txt")
         #time.sleep(3)
-        print("Challenge file received")
+        prYellow("Challenge file received")
         #time.sleep(3)
-        print("sending csr")
+        prYellow("sending csr")
 
         unicast(msg_json['name'], "Challenge uploaded", NAME + ".csr", "issue")
         #unicast(msg_json['name'], "Challenge uploaded", NAME +'.csr', 'issue')
@@ -213,7 +234,7 @@ def blockchain_action(msg_json):
         f = open("./blockchain/last_block.json", "w")
         f.write(json_object)
         f.close()
-        print("last block added successfully")
+        prGreen("last block added successfully")
 
         if header['Current_Cert_Hash'] != "":
             unicast(msg_json['name'], "Requesting issued certificate", "", "issued_cert")
@@ -230,8 +251,8 @@ def blockchain_action(msg_json):
     elif msg_json['bcaction'] == "recv_proof":
         cert_hash_list = msg_json["message"][0]
         cert_hash_list = ast.literal_eval(cert_hash_list)
-        print("Cert hash list: {}".format(cert_hash_list))
-        print("cert hash list type: {}".format(type(cert_hash_list)))
+        prYellow("Cert hash list: {}".format(cert_hash_list))
+        prYellow("cert hash list type: {}".format(type(cert_hash_list)))
         proof_str = msg_json["message"][1]
         
 
@@ -247,17 +268,17 @@ def blockchain_action(msg_json):
         if read_root == calc_root:
             sha256hasher = FileHash('sha256')
             cert_hash = sha256hasher.hash_file(NAME + ".crt")
-            print("Certificate hash: {}".format(cert_hash))
+            prYellow("Certificate hash: {}".format(cert_hash))
             calc_proof = certs_mtree.proof(cert_hash)
             if certs_mtree.verify(calc_proof, cert_hash):
                 if str(calc_proof) == proof_str:
-                    print("Certificate membership in the blockchain validated successfully")
+                    prGreen("Certificate membership in the blockchain validated successfully")
                 else:
-                    print("received proof does not match with calculated proof")
+                    prRed("received proof does not match with calculated proof")
             else:
-                print("Merkle proof verification for certificate failed")
+                prRed("Merkle proof verification for certificate failed")
         else:
-            print("Merkle roots don't match")
+            prRed("Merkle roots don't match")
 
     elif msg_json['bcaction'] == "req_cert":
         unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
@@ -284,7 +305,7 @@ def blockchain_action(msg_json):
 
         try:
             store_context.verify_certificate()
-            print("Valid signature")
+            prGreen("Valid signature")
             #unicast(issuer_validator, "confirming certificate...", "", "confirm_cert")
             sha256hasher = FileHash('sha256')
             cert_hash = sha256hasher.hash_file(cert_file)
@@ -294,8 +315,8 @@ def blockchain_action(msg_json):
             unicast(issuer_validator, msg, "", "req_Merkle")
             
         except Exception as error:
-            print("Invalid certificate signature")
-            print(error)
+            prRed("Invalid certificate signature")
+            prRed(error)
 
 
         
@@ -310,9 +331,9 @@ def menu():
     while not EXIT:
         time.sleep(0.3)
         print("\n1. Request Certificate.\n2. Revoke Certificate.\n3. Network.\n4. Exit")
-        selected = input("Selected option: ")
+        selected = input("Selected option: \n")
         if int(selected) == 1:
-            print("Sending CSR request to the blockchain network...")
+            prYellow("Sending CSR request to the blockchain network...")
             # Legit request
             ###broadcast('Certificate Request', NAME +'.csr', 'issue')
 
@@ -320,7 +341,7 @@ def menu():
             # Rogue request
             #broadcast('Certificate Request', NAME +'b.csr', 'issue')
         if int(selected) == 2:
-            print("Sending Revocation request to blockchain network... ")
+            prYellow("Sending Revocation request to blockchain network... ")
             # Legit request
             broadcast(NAME, NAME +'.crt', 'revoke')
         
