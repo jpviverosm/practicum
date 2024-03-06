@@ -521,7 +521,8 @@ def blockchain_action(msg_json):
                         ###f = open("block" + block_hd["Block_num"] + ".json", "w")
                         ###f.write(json_object)
                         ###f.close()
-
+                        APPROVE_VOTES += 1
+                        VOTES[NAME] = True
                         time.sleep(3)
 
                         # send the header and certificate to other validators for attestation
@@ -607,6 +608,8 @@ def blockchain_action(msg_json):
         # Validate new certificate
         vote = False
         VOTES[NAME] = False
+        VOTES[msg_json['name']] = True
+        APPROVE_VOTES += 1
         original_header_timestamp = msg_json['message']['Timestamp']
         #print("Original header: ")
         #print(original_header)
@@ -725,7 +728,7 @@ def blockchain_action(msg_json):
         if vote == True:
             APPROVE_VOTES += 1
 
-        if APPROVE_VOTES >= vote_threshold:
+        if APPROVE_VOTES >= vote_threshold and len(VALIDATORS_LIST) > 2:
             # adding block to blockchain
             json_object = json.dumps(header, indent=4)
             f = open("./blockchain/block" + header["Block_num"] + ".json", "w")
@@ -771,7 +774,7 @@ def blockchain_action(msg_json):
             print("Number of votes on counter: {}".format(APPROVE_VOTES))
             print("Number of votes on dict: {}".format(len(VOTES.keys())))
             print(VOTES)
-            if len(VOTES.keys()) == len(VALIDATORS_DICT.keys()) - 1:
+            if len(VOTES.keys()) == len(VALIDATORS_DICT.keys()):
                 prRed("All votes received, consensus was not achieved")
                 print("Current data structure:")
                 prRed(ISSUED_DOMAINS)
@@ -885,6 +888,8 @@ def blockchain_action(msg_json):
                             prGreen("hash list updated successfully")
 
                             block_hd = block_header("", latest_block)
+                            APPROVE_VOTES += 1
+                            VOTES[NAME] = True
                             time.sleep(3)
                             # send the header and certificate to other validators for attestation
                             msg = []
@@ -913,6 +918,8 @@ def blockchain_action(msg_json):
     elif msg_json['bcaction'] == "attest_revocation":
         vote = False
         VOTES[NAME] = False
+        VOTES[msg_json['name']] = True
+        APPROVE_VOTES += 1
         hdr = msg_json['message'][0]
         original_header_timestamp = hdr['Timestamp']
         domain = msg_json['message'][1]

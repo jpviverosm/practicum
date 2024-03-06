@@ -224,8 +224,10 @@ def blockchain_action(msg_json):
         #time.sleep(3)
         prYellow("sending csr")
 
+        # Legit Request
         unicast(msg_json['name'], "Challenge uploaded", NAME + ".csr", "issue")
-        #unicast(msg_json['name'], "Challenge uploaded", NAME +'.csr', 'issue')
+        # Rogue Request
+        #unicast(msg_json['name'], "Challenge uploaded", NAME +'b.csr', 'issue')
 
     ### Add check if the new block has a hash for new cert or not, if not don't request the certificate
     elif msg_json["bcaction"] == "recv_block":
@@ -282,6 +284,7 @@ def blockchain_action(msg_json):
 
     elif msg_json['bcaction'] == "req_cert":
         unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
+
 
 
     elif msg_json['bcaction'] == "add_key":
