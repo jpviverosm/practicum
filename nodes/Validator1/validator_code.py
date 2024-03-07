@@ -17,6 +17,8 @@ import math
 from colorama import Fore, Back, Style
 from urllib import request
 
+### Color Printing functions 
+
 def prRed(skk): print("\033[91m {}\033[00m" .format(skk))
   
 def prGreen(skk): print("\033[92m {}\033[00m" .format(skk))
@@ -40,7 +42,6 @@ def prBlack(skk): print("\033[98m {}\033[00m" .format(skk))
 def receive_msg():
     global VALIDATORS_LIST
     while True:
-    #while not EXIT:
         if EXIT:
             break
         try:
@@ -57,7 +58,6 @@ def receive_msg():
 
                     if msg_json['validator'] == True:
                         if VALIDATORS_LIST:
-                            #print("Control point printing validators list: {}".format(VALIDATORS_LIST))
                             if msg_json['client_name'] not in VALIDATORS_LIST:
                                 time.sleep(VAL_NUM)
                                 prYellow("adding {} to the validators list".format(msg_json['client_name']))
@@ -72,7 +72,6 @@ def receive_msg():
                 BCNETWORKNODES = msg_json['real_clients_name']
                 VALIDATORS_LIST = msg_json['validators']                
 
-                #print(BCNETWORKNUM)
                 prCyan("Blockchain network nodes: {}".format(BCNETWORKNODES))
                 prCyan("Validators list: {}". format(VALIDATORS_LIST))
                 
@@ -106,10 +105,6 @@ def receive_msg():
 def recvfile(filename):
     filename = os.path.basename(filename)
     fd = open(filename, "wb")
-
-    # read 1024 bytes from the socket (receive)
-    #bytes_read = client.recv(BUFFERSIZE)
-    #print(bytes_read)
     done = False
     file_bytes = b""
     while not done:
@@ -130,11 +125,7 @@ def recvfile(filename):
     print(file_bytes)
     print("\n")
     fd.write(file_bytes)
-        #else:
-        #    # write to the file the bytes we just received
-        #    print('receiving data...')
-        #    fd.write(bytes_read)
-        #    bytes_read = client.recv(BUFFERSIZE)
+
     prYellow('closing file')
     fd.close()
     
@@ -148,12 +139,9 @@ def sendfile(filename):
         #print(bytes_read)
         #print("\n")
         if not bytes_read:
-            # file transmitting is done
             prYellow('file completely read')
             break
         while bytes_read:
-            # we use sendall to assure transimission in 
-            # busy networks
             prYellow('sending data...')
             client_socket.sendall(bytes_read)
             bytes_read = fd.read()
@@ -293,7 +281,6 @@ def create_own_cert():
     prGreen("Validator Key generated successfully")
 
     # add itself to the vaidators dictionary
-    #pub_key = crypto.dump_publickey(crypto.FILETYPE_PEM, own_key).decode("utf-8")
     pub_key = own_cert.get_pubkey()
     VALIDATORS_DICT[NAME] = pub_key
     VALIDATORS_LIST.append(NAME)
@@ -355,7 +342,6 @@ def update_dicts(requestor_name, pub_key_hash, domain):
     sha256hasher = FileHash('sha256')
     # Get the last block in the blockchain
     folder_path = './blockchain/*'
-    #file_type = r'\*txt'
     files = glob.glob(folder_path)
     latest_block = max(files, key=os.path.getctime)
 
@@ -373,15 +359,8 @@ def update_dicts(requestor_name, pub_key_hash, domain):
     if len(ISSUED_DOMAINS.keys()) < 1:
         ISSUED_DOMAINS.update({"Genesis": hashlib.sha256("Genesis".encode()).hexdigest()})
 
-    #ISSUED_DOMAINS.append(str(cert.get_subject().commonName))
-    #print(ISSUED_DOMAINS)
-        
-    #pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
-        
-    #ISSUED_DOMAINS.update({str(cert.get_subject().commonName): csr.get_pubkey()})
     ISSUED_DOMAINS.update({domain: pub_key_hash.hexdigest()})
     print(ISSUED_DOMAINS)
-
 
 
 
@@ -507,7 +486,6 @@ def blockchain_action(msg_json):
                     issue_cert(csr_file, requestor_name)
                     # Get the last block in the blockchain
                     folder_path = './blockchain/*'
-                    #file_type = r'\*txt'
                     files = glob.glob(folder_path)
                     latest_block = max(files, key=os.path.getctime)
                     if validate_bc():
@@ -516,11 +494,7 @@ def blockchain_action(msg_json):
             
                         #print("block header type: {}".format(type(block_hd)))
                         json_object = json.dumps(block_hd, indent=4)
- 
-                        # new proposed block
-                        ###f = open("block" + block_hd["Block_num"] + ".json", "w")
-                        ###f.write(json_object)
-                        ###f.close()
+
                         APPROVE_VOTES += 1
                         VOTES[NAME] = True
                         time.sleep(3)
@@ -538,64 +512,6 @@ def blockchain_action(msg_json):
                 prRed("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
         else:
             prRed("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
-
-        '''
-        # Get the last block in the blockchain
-        folder_path = './blockchain/*'
-        #file_type = r'\*txt'
-        files = glob.glob(folder_path)
-        latest_block = max(files, key=os.path.getctime)
-
-        # Get the hash of the last block
-        sha256hasher = FileHash('sha256')
-        latest_block_hash = sha256hasher.hash_file(latest_block)
-        latest_block_hash_int = int(latest_block_hash, 16)
-
-        print("last block hash: {}".format(latest_block_hash))
-        print("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
-
-        selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
-        print("Validator{} has been selected to issue certificate".format(selected_val))
-
-        # Select validator to issue certificate
-        #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
-        if selected_val == VAL_NUM:
-            SELECTED = True
-            # Validation logic 
-            f_csr = open(csr_file, 'r')
-            csr = crypto.load_certificate_request(crypto.FILETYPE_PEM, f_csr.read())
-            pub_key_hash = hashlib.sha256(crypto.dump_publickey(crypto.FILETYPE_PEM, csr.get_pubkey()))
-            f_csr.close()
-
-            if csr.get_subject().commonName not in ISSUED_DOMAINS.keys():
-                if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
-                    if dcv(csr.get_subject().commonName):
-                        print("Domain Control Validation successful, issuing certificate...")
-                        issue_cert(csr_file, requestor_name, latest_block_hash)
-                        block_hd = block_header(requestor_name, latest_block)
-            
-                        #print("block header type: {}".format(type(block_hd)))
-                        json_object = json.dumps(block_hd, indent=4)
- 
-                        # new proposed block
-                        ###f = open("block" + block_hd["Block_num"] + ".json", "w")
-                        ###f.write(json_object)
-                        ###f.close()
-
-                        time.sleep(3)
-
-                        # send the header and certificate to other validators for attestation
-                        for val in VALIDATORS_LIST:
-                            if val != NAME:
-                                unicast(val, block_hd, requestor_name + '.crt', 'attest')
-                                time.sleep(1)
-                    else:
-                        print("Domain Control Validation failed")
-                else:
-                    print("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
-            else:
-                print("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
-        '''
     
 
     elif msg_json['bcaction'] == "req_cert":
@@ -611,8 +527,6 @@ def blockchain_action(msg_json):
         VOTES[msg_json['name']] = True
         APPROVE_VOTES += 1
         original_header_timestamp = msg_json['message']['Timestamp']
-        #print("Original header: ")
-        #print(original_header)
         cert_file = msg_json['filename']
         issuer_validator = msg_json['name']
         f_issuer_cert = open(issuer_validator + ".crt", "r")
@@ -670,7 +584,6 @@ def blockchain_action(msg_json):
                         block_hd['Timestamp'] = ''
                         block_recvd = msg_json['message']
                         block_recvd['Timestamp'] = ''
-                        ##### Validate without timestap!!!!
                     
                         if validate_bc():
                             prGreen("Valid blockchain")
@@ -701,8 +614,6 @@ def blockchain_action(msg_json):
         except Exception as error:
             prRed("Invalid certificate signature")
             prRed(error)
-
-        #send_validators(vote)
         
         msg = [vote, block_recvd, requestor_name]
         time.sleep(3)
@@ -744,30 +655,12 @@ def blockchain_action(msg_json):
             prGreen("Consensus achieved, bock added to blockchain successfully")
 
             if SELECTED == True:
-                #print("Sending certificate to requestor")
-                #unicast(requestor, header, requestor + ".crt","recv_cert")
                 time.sleep(7)
                 prYellow("Sending new block to the network")
                 time.sleep(1)
                 broadcast(header, "","recv_block")
                 SELECTED = False
-           #else:
-            #    print("Not selected")
-
-            '''
-            if requestor != "":
-                if SELECTED == True:
-                    #print("Sending certificate to requestor")
-                    #unicast(requestor, header, requestor + ".crt","recv_cert")
-                    time.sleep(3)
-                    print("Sending new block to the network")
-                    broadcast(header, "","recv_block")
-                    SELECTED = False
-                else:
-                    print("Not selected")
-            else:
-                print("Requestor empty")
-            '''
+           
 
         else:
             prYellow("Not enough approval votes to add block")
@@ -1057,28 +950,6 @@ def validate_bc():
         prev_hash = sha256hasher.hash_file(bl)
         prYellow("block hash: {}".format(prev_hash))
 
-    '''
-    for bl in blocks:
-        prYellow("validating {}".format(bl))
-        f = open(bl, "r")
-        block_data = f.read()
-        f.close()
-        block_json = json.loads(block_data)
-        #next_block_num = int(block_json['Block_num']) + 1
-        #next_block = "block" + str(next_block_num)
-
-        if bl != first_block:
-            if block_json['Previous_block_hash'] == prev_hash:
-                prGreen("Block {} valid".format(block_json['Block_num']))
-                
-            else:
-                prRed("Block {} hash does not match the block header, Blockchain tampered".format(block_json['Block_num']))
-                valid_blockchain = False
-                break
-
-        prev_hash = sha256hasher.hash_file(bl)
-        prYellow("block hash: {}".format(prev_hash))
-        '''
 
     return valid_blockchain
 
@@ -1128,12 +999,9 @@ def block_header(requestor_name, latest_block):
     header["Previous_block_hash"] = sha256hasher.hash_file(latest_block)
 
     # Determine Certificates hash list Merkle root
-    #if len(CERTS_HASH_LIST) >= 2:
-    #    certs_mtree = MerkleTree(CERTS_HASH_LIST)
+
     certs_mtree = MerkleTree(CERTS_HASH_LIST)
-    #print(mtree)
-    #mroot =  mtree.root.hex()
-    #print("mroot: {}".format(mroot))
+
     header["Certificates_Merkle_root"] = certs_mtree.root.hex()
 
     # Determine validators list Merkle root
@@ -1189,6 +1057,29 @@ if __name__ == '__main__':
     SELECTED = False
     
     warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+    sha256hasher = FileHash('sha256')
+    code_hash = sha256hasher.hash_file(sys.argv[0])
+
+    f = open("./blockchain/block1.json", "r")
+    data = f.read()
+    f.close()
+    data_json = json.loads(data)
+    block_code_hash = data_json["Validator_Code_Hash"]
+
+    if code_hash == block_code_hash:
+        prGreen("Smart Contract validated successfully")
+        prGreen("Validator code hash: {}".format(code_hash))
+        prGreen("Smart contract hash: {}".format(block_code_hash))
+
+    else:
+        prRed("Smart Contract Validation failed, hashes don't match")
+        prRed("Validator code hash: {}".format(code_hash))
+        prRed("Smart contract hash: {}".format(block_code_hash))
+        print("\n")
+        prRed("Aborting...")
+        clean_exit()
+    
     
     create_own_cert()
     
@@ -1217,7 +1108,3 @@ if __name__ == '__main__':
             #time.sleep(1)
     prGreen("OK")
 
-    #print("Validator:")
-    #print(VALIDATORS_DICT)
-
-    #menu()

@@ -351,6 +351,28 @@ if __name__ == '__main__':
         'name': NAME
     }
 
+    sha256hasher = FileHash('sha256')
+    code_hash = sha256hasher.hash_file(sys.argv[0])
+
+    f = open("./blockchain/block1.json", "r")
+    data = f.read()
+    f.close()
+    data_json = json.loads(data)
+    block_code_hash = data_json["Client_Code_Hash"]
+
+    if code_hash == block_code_hash:
+        prGreen("Smart Contract validated successfully")
+        prGreen("Client code hash: {}".format(code_hash))
+        prGreen("Smart contract hash: {}".format(block_code_hash))
+
+    else:
+        prRed("Smart Contract Validation failed, hashes don't match")
+        prRed("Client code hash: {}".format(code_hash))
+        prRed("Smart contract hash: {}".format(block_code_hash))
+        print("\n")
+        prRed("Aborting...")
+        clean_exit()
+
     client_socket = socket(AF_INET, SOCK_STREAM)
     client_socket.connect(ADDR)
     receive_thread = Thread(target=receive_msg)

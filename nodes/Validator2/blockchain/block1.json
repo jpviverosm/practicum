@@ -7,5 +7,8 @@
     "Validator_Merkle_root": "",
     "Issued_domains_Merkle_root": "",
     "Current_Cert_Merkle_proof": "",
-    "Current_Cert_Hash": ""
+    "Current_Cert_Hash": "",
+    "Validator_Code_Hash": "ff6823884a67f5d338b0a155b9647a30ef4de11b3e7e0103d5cc4799b0c16a23",
+    "Requestor_Code_Hash": "0b4bbb2777a89bdbc36bd303a25b56e2fc419f366901dbe486164fc16f9e78ca",
+    "Client_Code_Hash": "1918ec87e20400cad07da0f8236291a25f855a50ba233b28dd43f253d6a311ea"
 }

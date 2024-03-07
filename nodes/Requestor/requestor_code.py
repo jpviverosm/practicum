@@ -11,6 +11,8 @@ from merkly.mtree import MerkleTree
 from filehash import FileHash
 import ast
 from flask import Flask, send_file
+
+### Color Printing functions 
 		
 def prRed(skk): print("\033[91m {}\033[00m" .format(skk))
   
@@ -28,6 +30,9 @@ def prLightGray(skk): print("\033[97m {}\033[00m" .format(skk))
  
 def prBlack(skk): print("\033[98m {}\033[00m" .format(skk))
 
+#####################################################################################################################################
+### Communication handling functions
+#####################################################################################################################################
 
 def receive_msg():
     global BCNETWORKNODES
@@ -377,6 +382,28 @@ if __name__ == '__main__':
         'file': False,
         'name': NAME
     }
+
+    sha256hasher = FileHash('sha256')
+    code_hash = sha256hasher.hash_file(sys.argv[0])
+
+    f = open("./blockchain/block1.json", "r")
+    data = f.read()
+    f.close()
+    data_json = json.loads(data)
+    block_code_hash = data_json["Requestor_Code_Hash"]
+
+    if code_hash == block_code_hash:
+        prGreen("Smart Contract validated successfully")
+        prGreen("Requestor code hash: {}".format(code_hash))
+        prGreen("Smart contract hash: {}".format(block_code_hash))
+
+    else:
+        prRed("Smart Contract Validation failed, hashes don't match")
+        prRed("Requestor code hash: {}".format(code_hash))
+        prRed("Smart contract hash: {}".format(block_code_hash))
+        print("\n")
+        prRed("Aborting...")
+        clean_exit()
 
     client_socket = socket(AF_INET, SOCK_STREAM)
     client_socket.connect(ADDR)
