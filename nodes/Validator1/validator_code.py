@@ -36,7 +36,7 @@ def prLightGray(skk): print("\033[97m {}\033[00m" .format(skk))
 def prBlack(skk): print("\033[98m {}\033[00m" .format(skk))
 
 #####################################################################################################################################
-### Communication handling functions
+### Communication handling functions - Processing messages from the Message Server
 #####################################################################################################################################
 
 def receive_msg():
@@ -48,10 +48,11 @@ def receive_msg():
             msg = client_socket.recv(BUFFERSIZE)
             msg_json = json.loads(msg)
 
-
+            # Get name from the messaging server
             if msg_json['net_action'] == 'confirm_name':
                 prCyan('Name: {}'.format(msg_json['name']))
 
+            # Receive message that a new node has joined the network, if is a validator node, then add it to the validators list and request its certificate
             elif msg_json['net_action'] == 'new_node':
                 if msg_json['client_name'] != NAME:
                     prCyan('{} has joined the network'.format(msg_json['client_name']))
@@ -66,19 +67,21 @@ def receive_msg():
 
                                 
 
-
+            # Receive the list of nodes in the network
             elif msg_json['net_action'] == 'confirm_list':
                 BCNETWORKNUM = msg_json['real_clients_num']
                 BCNETWORKNODES = msg_json['real_clients_name']
                 VALIDATORS_LIST = msg_json['validators']                
 
                 prCyan("Blockchain network nodes: {}".format(BCNETWORKNODES))
-                prCyan("Validators list: {}". format(VALIDATORS_LIST))
+                prCyan("Validators list: {}".format(VALIDATORS_LIST))
                 
 
+            # Receive a notification message that a node has left the network
             elif msg_json['net_action'] == 'confirm_exit':
                 prCyan('{} has left the network'.format(msg_json['client_leaving']))
 
+            # Receive a unicast message, and receive a file if the flag is set, then process the blockchain action (bcaction)
             elif msg_json['net_action'] == 'unicast()':
                 print("\n")
                 prPurple(msg_json)
@@ -89,6 +92,7 @@ def receive_msg():
                 if msg_json['bcaction'] != '':    
                     blockchain_action(msg_json)
 
+            # Receive a unicast message, and receive a file if the flag is set, then process the blockchain action (bcaction)
             elif msg_json['net_action'] == 'broadcast()':
                 print("\n")
                 prPurple(msg_json)
@@ -102,23 +106,19 @@ def receive_msg():
         except OSError as error:
             return error
         
+# Receive a file from the network (unicast or broadcast)
 def recvfile(filename):
     filename = os.path.basename(filename)
     fd = open(filename, "wb")
     done = False
     file_bytes = b""
     while not done:
-        #print('control test')
         bytes_read = client_socket.recv(BUFFERSIZE)
-        #print('bytes read: {}'.format(bytes_read))
-        #print('terminate signal: {}'.format(bytes_read[-2:]))
-        #print('file bytes: {}'.format(file_bytes))
         file_bytes += bytes_read
         if bytes_read[-2:] == b"<>":
             done = True
             prYellow('tranmission complete')
         else:
-            #file_bytes += bytes_read
             prYellow('receiving data...')
     file_bytes = file_bytes[:-2]
     print("\n")
@@ -130,14 +130,12 @@ def recvfile(filename):
     fd.close()
     
 
+# Send a file
 def sendfile(filename):
     fd = open(filename, "rb")
     while True:
         # read the bytes from the file
         bytes_read = fd.read()
-        #print("\n")
-        #print(bytes_read)
-        #print("\n")
         if not bytes_read:
             prYellow('file completely read')
             break
@@ -149,6 +147,8 @@ def sendfile(filename):
     fd.close()
     client_socket.send(bytes("<>", "utf-8"))
 
+
+# Send message to the Message server (last action used by other functions like unicast or broadcast to send the message to the network)
 def send_msg(payload):
     try:
         msg = json.dumps(payload)
@@ -156,6 +156,7 @@ def send_msg(payload):
     except EOFError:
         clean_exit()
 
+# Close network socket and exit
 def clean_exit():
     payload = {
         'net_action': 'exit()',
@@ -169,6 +170,7 @@ def clean_exit():
 def handler(signal_recv, frame):
     clean_exit()
 
+# Send a unicast message
 def unicast(destination, message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
@@ -188,6 +190,7 @@ def unicast(destination, message = '', filename = '', bcaction = ''):
         time.sleep(0.5)
         sendfile(filename)
 
+# Send a broadcast message
 def broadcast(message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
@@ -207,6 +210,7 @@ def broadcast(message = '', filename = '', bcaction = ''):
         time.sleep(0.5)
         sendfile(filename)
 
+# Send a message to the message server requesting the list of nodes in the network
 def network():
     payload = {
         'net_action': 'online()',
@@ -214,6 +218,7 @@ def network():
 
     send_msg(payload)
 
+# Setup the name of the node in the network
 def name(name):
     payload = {
         'net_action': 'name()',
@@ -229,6 +234,7 @@ def name(name):
 ### Certificate handling functions
 #####################################################################################################################################
 
+# Create a self-signed certificate
 # Taken from https://github.com/iquzart/python-digital-certificate/blob/master/digital-cert.py
 def create_own_cert():
     own_key = crypto.PKey()
@@ -285,6 +291,7 @@ def create_own_cert():
     VALIDATORS_DICT[NAME] = pub_key
     VALIDATORS_LIST.append(NAME)
 
+# issue a certificate from a csr request
 def issue_cert(csr_file, requestor_name):
     global CERTS_HASH_LIST
     global ISSUED_DOMAINS
@@ -336,7 +343,7 @@ def issue_cert(csr_file, requestor_name):
 
     prGreen('Certificate created successfully')
 
-
+# update the helper data structures - Certificates hash list and issued domains
 def update_dicts(requestor_name, pub_key_hash, domain):
     # add cert hash to the hash list
     sha256hasher = FileHash('sha256')
@@ -363,7 +370,7 @@ def update_dicts(requestor_name, pub_key_hash, domain):
     print(ISSUED_DOMAINS)
 
 
-
+# extract the public key from a certificate
 def extract_public_key(cert):
     prYellow('Extracting public key for {}'.format(cert))
     f = open(cert, "r")
@@ -371,9 +378,11 @@ def extract_public_key(cert):
     f.close()
     return pub_key
 
+# request the digital certificate of a node
 def req_cert(name):
     unicast(name, 'Requesting Certificate', '', 'req_cert')
 
+# generate challenge file for the Domain Control Validation (DCV)
 def generate_challenge():
     rand_list = []
     rand_list.append(random.randint(50000000, 100000000))
@@ -387,6 +396,7 @@ def generate_challenge():
         f.write(str(r) + "\n")
     f.close()
 
+# perform the DCV based on the challenge file sent to the requestor
 def dcv(common_name):
     res = False
     remote_url = 'http://' + common_name + ':8080/challenge'
@@ -424,7 +434,7 @@ def blockchain_action(msg_json):
     global ISSUED_DOMAINS
     global CERTS_HASH_LIST
 
-
+    # process a certificate issuance request
     if msg_json['bcaction'] == "req_cert_issuance":
         # Get the last block in the blockchain
         folder_path = './blockchain/*'
@@ -439,12 +449,7 @@ def blockchain_action(msg_json):
         print("Last block numeber: {}".format(block_json['Block_num']))
         if len(files) != int(block_json['Block_num']):
             prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
-            #broadcast("Aborting...", "", "abort")
-            #time.sleep(7)
-            #for val in VALIDATORS_LIST:
-            #    if val != NAME:
-            #        unicast(val, "Aborting...", "", 'abort')
-            #        time.sleep(1)
+            
         else:
 
             # Get the hash of the last block
@@ -465,6 +470,7 @@ def blockchain_action(msg_json):
                 generate_challenge()
                 unicast(msg_json['name'], "dcv challenge", "challenge.txt", "challenge")
 
+    # process a certificate issuance request confirmation, sent by the requestor after uploading the challenge file to their domain controlled website
     elif msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
         requestor_name = msg_json['name']
@@ -513,13 +519,15 @@ def blockchain_action(msg_json):
         else:
             prRed("Invalid request, {} has an existing Certificate in the blockchain".format(csr.get_subject().commonName))
     
-
+    # process a "send your certificate" request
     elif msg_json['bcaction'] == "req_cert":
         unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
 
+    # process the received (other node's) certificate
     elif msg_json['bcaction'] == "add_key":
         add_validator_key(msg_json['name'])
 
+    # perform attestation of a new certificate and new proposed block
     elif msg_json['bcaction'] == "attest":
         # Validate new certificate
         vote = False
@@ -622,6 +630,7 @@ def blockchain_action(msg_json):
                 unicast(val,msg,'','vote')   
                 time.sleep(VAL_NUM)
 
+    # process votes from the other validators in the blockchain
     elif msg_json['bcaction'] == "vote":
         vote = msg_json['message'][0]
         header = msg_json['message'][1]
@@ -681,9 +690,11 @@ def blockchain_action(msg_json):
                 prYellow(CERTS_HASH_LIST)
 
 
+    # process request to send the issued certificate
     elif msg_json['bcaction'] == "issued_cert":
         unicast(msg_json['name'], "Sending issued certificate", msg_json['name'] + ".crt","recv_cert")
 
+    # receive confirmation of the validity of the certificate
     elif msg_json['bcaction'] == "confirm_cert":
         folder_path = './blockchain/*'
         files = glob.glob(folder_path)
@@ -698,6 +709,7 @@ def blockchain_action(msg_json):
         prYellow("Sending new block to the network")
         broadcast(block_json, "","recv_block")
 
+    # process request to generate a Merkle proof for a certificate (validate blockchain membership)
     elif msg_json['bcaction'] == "req_Merkle":
         Merkle_proof = []
         cert_hash = msg_json["message"][0]
@@ -714,6 +726,7 @@ def blockchain_action(msg_json):
         time.sleep(1)
         unicast(msg_json["name"], Merkle_proof, "", "recv_proof")
 
+    # process a certificate revocation request 
     elif msg_json['bcaction'] == "revoke":
         ### insert call to DCV
         requestor_name = msg_json['name']
@@ -734,12 +747,6 @@ def blockchain_action(msg_json):
         print("Last block numeber: {}".format(block_json['Block_num']))
         if len(files) != int(block_json['Block_num']):
             prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
-            #broadcast("Aborting...", "", "abort")
-            #time.sleep(7)
-            #for val in VALIDATORS_LIST:
-            #    if val != NAME:
-            #        unicast(val, "Aborting...", "", 'abort')
-            #        time.sleep(1)
 
         else:
             latest_block_hash = sha256hasher.hash_file(latest_block)
@@ -802,12 +809,13 @@ def blockchain_action(msg_json):
                 else:
                     prRed("Invalid blockchain, hashes don't match")
 
-
+    # restore changes
     elif msg_json['bcaction'] == "abort":
         restore_certs()
         restore_domains()
         prYellow("Data restored")
     
+    # attest on the revocation of a certificate
     elif msg_json['bcaction'] == "attest_revocation":
         vote = False
         VOTES[NAME] = False
@@ -881,6 +889,7 @@ def blockchain_action(msg_json):
                 unicast(val,msg,'','vote')   
                 time.sleep(VAL_NUM)
 
+# backup the certificate hash list before adding / removing a certificate
 def backup_certs():
     global PREV_CERTS_HASH_LIST
     global CERTS_HASH_LIST
@@ -889,7 +898,7 @@ def backup_certs():
     for cert in CERTS_HASH_LIST:
         PREV_CERTS_HASH_LIST.append(cert)
 
-
+# backup the issued domain dictionary before adding / removing a certificate
 def backup_domains():
     global PREV_ISSUED_DOMAINS
     global ISSUED_DOMAINS
@@ -898,6 +907,7 @@ def backup_domains():
     for dom in ISSUED_DOMAINS.keys():
         PREV_ISSUED_DOMAINS[dom] = ISSUED_DOMAINS[dom]
 
+# restore the certificate hash list 
 def restore_certs():
     global PREV_CERTS_HASH_LIST
     global CERTS_HASH_LIST
@@ -906,7 +916,7 @@ def restore_certs():
     for cert in PREV_CERTS_HASH_LIST:
         CERTS_HASH_LIST.append(cert)
 
-
+# restore the issued domain dictionary
 def restore_domains():
     global PREV_ISSUED_DOMAINS
     global ISSUED_DOMAINS
@@ -915,7 +925,7 @@ def restore_domains():
     for dom in PREV_ISSUED_DOMAINS.keys():
         ISSUED_DOMAINS[dom] = PREV_ISSUED_DOMAINS[dom]
 
-
+# validate the full blockchain (block hash matches the hash on the next block header)
 def validate_bc():
     folder_path = './blockchain/*'
     blocks = glob.glob(folder_path)
@@ -953,7 +963,7 @@ def validate_bc():
 
     return valid_blockchain
 
-
+# Add the public key of a new validator
 def add_validator_key(validator_name):
     prYellow("adding keys to the validators dictionary")
     f = open(validator_name + '.crt', "r")
@@ -966,7 +976,7 @@ def add_validator_key(validator_name):
     print(VALIDATORS_DICT)
     prGreen("ok")
 
-
+# generate the header of a new block
 def block_header(requestor_name, latest_block):
     global CERTS_HASH_LIST
     global VALIDATORS_LIST
@@ -1058,6 +1068,8 @@ if __name__ == '__main__':
     
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+
+    # validate executing code matches the hash of the first block (emulating a smart contract)
     sha256hasher = FileHash('sha256')
     code_hash = sha256hasher.hash_file(sys.argv[0])
 
@@ -1083,6 +1095,7 @@ if __name__ == '__main__':
     
     create_own_cert()
     
+    # create the sockets and threads for the bi-directional communication
     client_socket = socket(AF_INET, SOCK_STREAM)
     client_socket.connect(ADDR)
     receive_thread = Thread(target=receive_msg)
@@ -1098,6 +1111,7 @@ if __name__ == '__main__':
 
     prYellow("Checking for other validators...")
 
+    # look for validators upon start
     for val in VALIDATORS_LIST:
         prYellow("iterating validators list: {}".format(val))
         if val != NAME:

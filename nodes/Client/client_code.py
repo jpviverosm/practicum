@@ -12,6 +12,8 @@ import ast
 from datetime import date
 from datetime import datetime
 
+### Color Printing functions 
+
 def prRed(skk): print("\033[91m {}\033[00m" .format(skk))
   
 def prGreen(skk): print("\033[92m {}\033[00m" .format(skk))
@@ -28,6 +30,10 @@ def prLightGray(skk): print("\033[97m {}\033[00m" .format(skk))
  
 def prBlack(skk): print("\033[98m {}\033[00m" .format(skk))
 
+#####################################################################################################################################
+### Communication handling functions
+#####################################################################################################################################
+
 def receive_msg():
     global BCNETWORKNODES
     while True:
@@ -38,13 +44,15 @@ def receive_msg():
             msg = client_socket.recv(BUFFERSIZE)
             msg_json = json.loads(msg)
 
+            # Get name from the messaging server
             if msg_json['net_action'] == 'confirm_name':
                 prCyan('Name: {}'.format(msg_json['name']))
 
+            # Receive message that a new node has joined the network
             elif msg_json['net_action'] == 'new_node':
                 prCyan('{} has joined the network'.format(msg_json['client_name']))
 
-
+            # Receive the list of nodes in the network
             elif msg_json['net_action'] == 'confirm_list':
                 BCNETWORKNUM = msg_json['real_clients_num']
                 BCNETWORKNODES = msg_json['real_clients_name']
@@ -52,9 +60,11 @@ def receive_msg():
                 #print(BCNETWORKNUM)
                 prCyan(BCNETWORKNODES)
 
+            # Receive a notification message that a node has left the network
             elif msg_json['net_action'] == 'confirm_exit':
                 prCyan('{} has left the network'.format(msg_json['client_leaving']))
 
+            # Receive a unicast message, and receive a file if the flag is set, then process the blockchain action (bcaction)
             elif msg_json['net_action'] == 'unicast()':
                 print("\n")
                 prPurple(msg_json)
@@ -64,6 +74,7 @@ def receive_msg():
                 if msg_json['bcaction'] != '':    
                     blockchain_action(msg_json)
 
+            # Receive a unicast message, and receive a file if the flag is set, then process the blockchain action (bcaction)
             elif msg_json['net_action'] == 'broadcast()':
                 print("\n")
                 prPurple(msg_json)
@@ -76,42 +87,33 @@ def receive_msg():
         except OSError as error:
             return error
         
+# Receive a file from the network (unicast or broadcast)
 def recvfile(filename):
     filename = os.path.basename(filename)
     fd = open(filename, "wb")
 
-    # read 1024 bytes from the socket (receive)
-    #bytes_read = client.recv(BUFFERSIZE)
-    #print(bytes_read)
     done = False
     file_bytes = b""
     while not done:
-        #print('control test')
+
         bytes_read = client_socket.recv(BUFFERSIZE)
-        #print('bytes read: {}'.format(bytes_read))
-        #print('terminate signal: {}'.format(bytes_read[-2:]))
-        #print('file bytes: {}'.format(file_bytes))
         file_bytes += bytes_read
         if bytes_read[-2:] == b"<>":
             done = True
             prYellow('tranmission complete')
         else:
-            #file_bytes += bytes_read
+
             prYellow('receiving data...')
     file_bytes = file_bytes[:-2]
     print("\n")
     print(file_bytes)
     print("\n")
     fd.write(file_bytes)
-        #else:
-        #    # write to the file the bytes we just received
-        #    print('receiving data...')
-        #    fd.write(bytes_read)
-        #    bytes_read = client.recv(BUFFERSIZE)
+
     prYellow('closing file')
     fd.close()
 
-
+# Send a file
 def sendfile(filename):
     fd = open(filename, "rb")
     while True:
@@ -134,7 +136,7 @@ def sendfile(filename):
     fd.close()
     client_socket.send(bytes("<>", "utf-8"))
 
-
+# Send message to the Message server (last action used by other functions like unicast or broadcast to send the message to the network)
 def send_msg(payload):
     try:
         msg = json.dumps(payload)
@@ -142,6 +144,7 @@ def send_msg(payload):
     except EOFError:
         clean_exit()
 
+# Close network socket and exit
 def clean_exit():
     payload = {
         'net_action': 'exit()',
@@ -155,6 +158,7 @@ def clean_exit():
 def handler(signal_recv, frame):
     clean_exit()
 
+# Send a unicast message
 def unicast(destination, message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
@@ -174,6 +178,7 @@ def unicast(destination, message = '', filename = '', bcaction = ''):
         time.sleep(0.5)
         sendfile(filename)
 
+# Send a broadcast message
 def broadcast(message = '', filename = '', bcaction = ''):
     fileflag = False
     if filename != '':
@@ -190,6 +195,7 @@ def broadcast(message = '', filename = '', bcaction = ''):
 
     send_msg(payload)
 
+# Send a message to the message server requesting the list of nodes in the network
 def network():
     payload = {
         'net_action': 'online()',
@@ -197,6 +203,7 @@ def network():
 
     send_msg(payload)
 
+# Setup the name of the node in the network
 def name(name):
     payload = {
         'net_action': 'name()',
@@ -213,6 +220,7 @@ def name(name):
 #####################################################################################################################################
 
 def blockchain_action(msg_json):     
+    # Receive the newly added block of the blockchain (store locally as the last block)
     if msg_json["bcaction"] == "recv_block":
         header = msg_json['message']
         json_object = json.dumps(header, indent=4)
@@ -221,6 +229,7 @@ def blockchain_action(msg_json):
         f.close()
         prGreen("last block added successfully")
 
+    # receive Merkle proof for the newly issued certificate and validate it was included in the blockchain successfully 
     elif msg_json['bcaction'] == "recv_proof":
         cert_hash_list = msg_json["message"][0]
         cert_hash_list = ast.literal_eval(cert_hash_list)
@@ -260,7 +269,7 @@ def blockchain_action(msg_json):
             prRed("Merkle roots don't match")
 
 
-
+    # receive and process the validator certificate to validate the certificate signature
     elif msg_json['bcaction'] == "add_key":
 
         cert_file = msg_json['filename']
@@ -295,6 +304,7 @@ def blockchain_action(msg_json):
             msg.append(server)
             unicast(issuer, msg, "", "req_Merkle")
 
+# display menu to user to connect to a server
 def menu():
     selected = 0
     #exit = False
@@ -326,9 +336,6 @@ def menu():
         if int(selected) == 4:
             clean_exit()
 
-
-        #else:
-        #    print("\nSelect a valid option:")
             
 
 
@@ -351,6 +358,7 @@ if __name__ == '__main__':
         'name': NAME
     }
 
+    # validate executing code matches the hash of the first block (emulating a smart contract)
     sha256hasher = FileHash('sha256')
     code_hash = sha256hasher.hash_file(sys.argv[0])
 
@@ -373,14 +381,13 @@ if __name__ == '__main__':
         prRed("Aborting...")
         clean_exit()
 
+    # create the sockets and threads for the bi-directional communication
     client_socket = socket(AF_INET, SOCK_STREAM)
     client_socket.connect(ADDR)
     receive_thread = Thread(target=receive_msg)
     receive_thread.start()
 
-    # set name 
-    #PAYLOAD['net_action'] = 'name()'
-    #send_msg(PAYLOAD)
+
     name(NAME)
 
     time.sleep(0.5)
