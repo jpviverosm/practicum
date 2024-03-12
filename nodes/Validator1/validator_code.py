@@ -81,6 +81,19 @@ def receive_msg():
             elif msg_json['net_action'] == 'confirm_exit':
                 prCyan('{} has left the network'.format(msg_json['client_leaving']))
 
+                if msg_json['validator'] == True:
+                    if VALIDATORS_LIST:
+                        if msg_json['client_leaving'] in VALIDATORS_LIST:
+                            
+                            prYellow("removing {} from the validators list".format(msg_json['client_leaving']))
+                            VALIDATORS_LIST.remove(msg_json['client_leaving'])
+                            del VALIDATORS_DICT[msg_json['client_leaving']]
+                            prGreen("Validators updated")
+                            print("\n")
+                            prYellow(VALIDATORS_LIST)
+                            prYellow(VALIDATORS_DICT)
+                            
+
             # Receive a unicast message, and receive a file if the flag is set, then process the blockchain action (bcaction)
             elif msg_json['net_action'] == 'unicast()':
                 print("\n")
@@ -160,7 +173,8 @@ def send_msg(payload):
 def clean_exit():
     payload = {
         'net_action': 'exit()',
-        'name': NAME
+        'name': NAME,
+        'validator': True
     }
     send_msg(payload)
     client_socket.close()
@@ -384,15 +398,17 @@ def req_cert(name):
 
 # generate challenge file for the Domain Control Validation (DCV)
 def generate_challenge():
-    rand_list = []
-    rand_list.append(random.randint(50000000, 100000000))
-    rand_list.append(random.randint(50000000, 100000000))
-    rand_list.append(random.randint(50000000, 100000000))
-    rand_list.append(random.randint(50000000, 100000000))
-    rand_list.append(random.randint(50000000, 100000000))
+    global RAND_LIST
+    RAND_LIST.clear()
+    #rand_list = []
+    RAND_LIST.append(random.randint(50000000, 100000000))
+    RAND_LIST.append(random.randint(50000000, 100000000))
+    RAND_LIST.append(random.randint(50000000, 100000000))
+    RAND_LIST.append(random.randint(50000000, 100000000))
+    RAND_LIST.append(random.randint(50000000, 100000000))
 
     f = open("challenge.txt", "w")
-    for r in rand_list:
+    for r in RAND_LIST:
         f.write(str(r) + "\n")
     f.close()
 
@@ -433,6 +449,7 @@ def blockchain_action(msg_json):
     global PREV_ISSUED_DOMAINS
     global ISSUED_DOMAINS
     global CERTS_HASH_LIST
+    global RAND_LIST
 
     # process a certificate issuance request
     if msg_json['bcaction'] == "req_cert_issuance":
@@ -446,7 +463,7 @@ def blockchain_action(msg_json):
         f.close()
         block_json = json.loads(block_data)
         print("Number of files: {}".format(len(files)))
-        print("Last block numeber: {}".format(block_json['Block_num']))
+        print("Last block number: {}".format(block_json['Block_num']))
         if len(files) != int(block_json['Block_num']):
             prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
             
@@ -487,6 +504,9 @@ def blockchain_action(msg_json):
             if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
                 prGreen("valid public key")
                 print(csr.get_subject().commonName)
+
+
+                #if True:
                 if dcv(csr.get_subject().commonName):
                     prGreen("Domain Control Validation successful, issuing certificate...")
                     issue_cert(csr_file, requestor_name)
@@ -506,9 +526,13 @@ def blockchain_action(msg_json):
                         time.sleep(3)
 
                         # send the header and certificate to other validators for attestation
+                        message = []
+                        message.append(block_hd)
+                        message.append(RAND_LIST)
                         for val in VALIDATORS_LIST:
                             if val != NAME:
-                                unicast(val, block_hd, requestor_name + '.crt', 'attest')
+                                unicast(val, message, requestor_name + '.crt', 'attest')
+                                #unicast(val, block_hd, requestor_name + '.crt', 'attest')
                                 time.sleep(1)
                     else:
                         prRed("Invalid Blockchain, aborting certificate issuance")
@@ -521,11 +545,32 @@ def blockchain_action(msg_json):
     
     # process a "send your certificate" request
     elif msg_json['bcaction'] == "req_cert":
-        unicast(msg_json['name'], 'Sending Certificate', NAME + '.crt', 'add_key')
+        genesis_block = './blockchain/block1.json'
+        f = open(genesis_block, "r")
+        gen_block_data = f.read()
+        f.close()
+        gen_block_json = json.loads(gen_block_data)
+
+        unicast(msg_json['name'], gen_block_json, NAME + '.crt', 'add_key')
 
     # process the received (other node's) certificate
     elif msg_json['bcaction'] == "add_key":
-        add_validator_key(msg_json['name'])
+        recvd_block = msg_json["message"]
+        genesis_block = './blockchain/block1.json'
+        f = open(genesis_block, "r")
+        gen_block_data = f.read()
+        f.close()
+        gen_block_json = json.loads(gen_block_data)
+
+        if gen_block_json == recvd_block:
+            prGreen("Valid genesis block")
+            add_validator_key(msg_json['name'])
+        else:
+            prRed("Invalid genesis block, rogue validator, removing from validators list...")
+            VALIDATORS_LIST.remove(msg_json['name'])
+            prYellow(VALIDATORS_LIST)
+
+
 
     # perform attestation of a new certificate and new proposed block
     elif msg_json['bcaction'] == "attest":
@@ -534,7 +579,20 @@ def blockchain_action(msg_json):
         VOTES[NAME] = False
         VOTES[msg_json['name']] = True
         APPROVE_VOTES += 1
-        original_header_timestamp = msg_json['message']['Timestamp']
+
+        rcv_header = msg_json['message'][0]
+        rnd_list = msg_json['message'][1]
+
+        f = open("challenge.txt", "w")
+        for r in rnd_list:
+            f.write(str(r) + "\n")
+        f.close()
+
+        block_recvd = rcv_header
+        original_header_timestamp = rcv_header['Timestamp']
+        #original_header_timestamp = msg_json['message']['Timestamp']
+
+        requestor_name = msg_json['filename'][:-4]
         cert_file = msg_json['filename']
         issuer_validator = msg_json['name']
         f_issuer_cert = open(issuer_validator + ".crt", "r")
@@ -562,55 +620,62 @@ def blockchain_action(msg_json):
                     if pub_key_hash.hexdigest() not in ISSUED_DOMAINS.values():
                         prGreen("valid certificate")
 
-                        # Validate new block
-                        requestor_name = msg_json['filename'][:-4]
-                        # Get the last block in the blockchain
-                        folder_path = './blockchain/*'
-                        files = glob.glob(folder_path)
-                        sha256hasher = FileHash('sha256')
-                        latest_block = max(files, key=os.path.getctime)
-                        latest_block_hash = sha256hasher.hash_file(latest_block)
-                        domain = str(cert.get_subject().commonName)
+                        if dcv(cert.get_subject().commonName):
+                            prGreen("Domain Control Validation successful, valid request")
 
-                        #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
-                        backup_certs()
-                        #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
-                        backup_domains()
+                            # Validate new block
+                            requestor_name = msg_json['filename'][:-4]
+                            # Get the last block in the blockchain
+                            folder_path = './blockchain/*'
+                            files = glob.glob(folder_path)
+                            sha256hasher = FileHash('sha256')
+                            latest_block = max(files, key=os.path.getctime)
+                            latest_block_hash = sha256hasher.hash_file(latest_block)
+                            domain = str(cert.get_subject().commonName)
 
-                        update_dicts(requestor_name, pub_key_hash, domain)
+                            #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
+                            backup_certs()
+                            #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
+                            backup_domains()
 
-                        block_hd = block_header(requestor_name, latest_block)
+                            update_dicts(requestor_name, pub_key_hash, domain)
 
-                        #prYellow("calculated block header: {}".format(type(block_hd)))
-                        print("\n")
-                        print(block_hd)
-                        print("\n")
-                        #prYellow("received block header: {}".format(type(msg_json['message'])))
-                        print(msg_json['message'])
-                        print("\n")
+                            block_hd = block_header(requestor_name, latest_block)
 
-                        block_hd['Timestamp'] = ''
-                        block_recvd = msg_json['message']
-                        block_recvd['Timestamp'] = ''
+                            #prYellow("calculated block header: {}".format(type(block_hd)))
+                            print("\n")
+                            print(block_hd)
+                            print("\n")
+                            #prYellow("received block header: {}".format(type(msg_json['message'])))
+                            print(rcv_header)
+                            #print(msg_json['message'])
+                            print("\n")
+
+                            block_hd['Timestamp'] = ''
+                            #block_recvd = msg_json['message']
+                            #block_recvd = rcv_header
+                            block_recvd['Timestamp'] = ''
                     
-                        if validate_bc():
-                            prGreen("Valid blockchain")
-                            if block_hd == block_recvd:
-                                prGreen("same block header, valid block")
-                                block_recvd['Timestamp'] = original_header_timestamp
-                                vote = True
-                                APPROVE_VOTES += 1
-                                VOTES[NAME] = True
+                            if validate_bc():
+                                prGreen("Valid blockchain")
+                                if block_hd == block_recvd:
+                                    prGreen("same block header, valid block")
+                                    block_recvd['Timestamp'] = original_header_timestamp
+                                    vote = True
+                                    APPROVE_VOTES += 1
+                                    VOTES[NAME] = True
+                                else:
+                                    prRed("Invalid block")
+                                    print("\n")
+                                    print("Calculated header:")
+                                    print(block_hd)
+                                    print("\n")
+                                    print("Block received:")
+                                    print(block_recvd)
                             else:
-                                prRed("Invalid block")
-                                print("\n")
-                                print("Calculated header:")
-                                print(block_hd)
-                                print("\n")
-                                print("Block received:")
-                                print(block_recvd)
+                                prRed("Invalid blockchain, hashes don't match")
                         else:
-                            prRed("Invalid blockchain, hashes don't match")
+                            prRed("Domain Control Validation failed")
                     else:
                         prRed("Invalid request, there is an existing Certificate in the blockchain with the key: {}".format(pub_key_hash.hexdigest()))
                 else:
@@ -643,11 +708,13 @@ def blockchain_action(msg_json):
         # equal than 2f+1, where f=(t-1)/3, and t is the number of validators in the blockchain network
 
         ft = (len(VALIDATORS_LIST) - 1) / 3
-        vote_threshold = math.trunc((2 * ft) + 1)
+        vote_threshold = int(round(((2 * ft) + 1), 0))
+        print("Vote threshold: {}".format(vote_threshold))
         
         if vote == True:
             APPROVE_VOTES += 1
 
+        print("Approve votes: {}".format(APPROVE_VOTES))
         if APPROVE_VOTES >= vote_threshold and len(VALIDATORS_LIST) > 2:
             # adding block to blockchain
             json_object = json.dumps(header, indent=4)
@@ -664,7 +731,7 @@ def blockchain_action(msg_json):
             prGreen("Consensus achieved, bock added to blockchain successfully")
 
             if SELECTED == True:
-                time.sleep(7)
+                time.sleep(8)
                 prYellow("Sending new block to the network")
                 time.sleep(1)
                 broadcast(header, "","recv_block")
@@ -672,11 +739,14 @@ def blockchain_action(msg_json):
            
 
         else:
+            
             prYellow("Not enough approval votes to add block")
             print("Number of votes on counter: {}".format(APPROVE_VOTES))
             print("Number of votes on dict: {}".format(len(VOTES.keys())))
             print(VOTES)
             if len(VOTES.keys()) == len(VALIDATORS_DICT.keys()):
+                if len(VALIDATORS_LIST) <= 2:
+                    prRed("Not enough validators in network...")
                 prRed("All votes received, consensus was not achieved")
                 print("Current data structure:")
                 prRed(ISSUED_DOMAINS)
@@ -744,7 +814,7 @@ def blockchain_action(msg_json):
         f.close()
         block_json = json.loads(block_data)
         print("Number of files: {}".format(len(files)))
-        print("Last block numeber: {}".format(block_json['Block_num']))
+        print("Last block number: {}".format(block_json['Block_num']))
         if len(files) != int(block_json['Block_num']):
             prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
 
@@ -1065,6 +1135,7 @@ if __name__ == '__main__':
     VOTES = {}
     APPROVE_VOTES = 0
     SELECTED = False
+    RAND_LIST = []
     
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -1079,6 +1150,8 @@ if __name__ == '__main__':
     data_json = json.loads(data)
     block_code_hash = data_json["Validator_Code_Hash"]
 
+
+    #if True:
     if code_hash == block_code_hash:
         prGreen("Smart Contract validated successfully")
         prGreen("Validator code hash: {}".format(code_hash))

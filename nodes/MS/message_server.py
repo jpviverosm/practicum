@@ -82,15 +82,21 @@ def single_client(client,addr):
             broadcast_msg(payload_b)
             
         elif msg_json['net_action'] == 'exit()':
+            is_validator = False
             client_name = msg_json['name']
             print(f'{client_name} has disconnected ')
+                       
             client.close()
             clients.pop(client_name)
 
             print("Nodes: {}".format(clients))
 
+            if msg_json['validator'] == True:
+                is_validator = True
+
             payload = {
                 'net_action': 'confirm_exit',
+                'validator': is_validator,
                 'client_leaving': client_name,
                 'file': False
             }
