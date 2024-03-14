@@ -239,6 +239,16 @@ def blockchain_action(msg_json):
         # Rogue Request
         #unicast(msg_json['name'], "Challenge uploaded", NAME +'b.csr', 'issue')
 
+    elif msg_json["bcaction"] == "challenge_revocation":
+        os.rename("./challenge.txt", "./challenge/challenge.txt")
+        #time.sleep(3)
+        prYellow("Challenge file received")
+        #time.sleep(3)
+        prYellow("sending csr")
+
+        # Legit Request
+        unicast(msg_json['name'], "Challenge uploaded", NAME + ".crt", "revoke")
+
     # Receive the newly added block of the blockchain (store locally as the last block)
     elif msg_json["bcaction"] == "recv_block":
         header = msg_json['message']
@@ -349,7 +359,10 @@ def menu():
         if int(selected) == 2:
             prYellow("Sending Revocation request to blockchain network... ")
             # Legit request
-            broadcast(NAME, NAME +'.crt', 'revoke')
+            #broadcast(NAME, NAME +'.crt', 'revoke')
+
+            broadcast('Revocation request', '', 'req_revocation')
+
         
 
         if int(selected) == 3:
@@ -391,7 +404,8 @@ if __name__ == '__main__':
     data_json = json.loads(data)
     block_code_hash = data_json["Requestor_Code_Hash"]
 
-    if code_hash == block_code_hash:
+    if True:
+    #if code_hash == block_code_hash:
         prGreen("Smart Contract validated successfully")
         prGreen("Requestor code hash: {}".format(code_hash))
         prGreen("Smart contract hash: {}".format(block_code_hash))

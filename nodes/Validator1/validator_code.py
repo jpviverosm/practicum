@@ -487,6 +487,41 @@ def blockchain_action(msg_json):
                 generate_challenge()
                 unicast(msg_json['name'], "dcv challenge", "challenge.txt", "challenge")
 
+    elif msg_json['bcaction'] == "req_revocation":
+        # Get the last block in the blockchain
+        folder_path = './blockchain/*'
+        #file_type = r'\*txt'
+        files = glob.glob(folder_path)
+        latest_block = max(files, key=os.path.getctime)
+        f = open(latest_block, "r")
+        block_data = f.read()
+        f.close()
+        block_json = json.loads(block_data)
+        print("Number of files: {}".format(len(files)))
+        print("Last block number: {}".format(block_json['Block_num']))
+        if len(files) != int(block_json['Block_num']):
+            prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
+            
+        else:
+
+            # Get the hash of the last block
+            sha256hasher = FileHash('sha256')
+            latest_block_hash = sha256hasher.hash_file(latest_block)
+            latest_block_hash_int = int(latest_block_hash, 16)
+
+            prYellow("last block hash: {}".format(latest_block_hash))
+            prYellow("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
+
+            selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
+            prYellow("Validator{} has been selected to revoke certificate".format(selected_val))
+
+            # Select validator to issue certificate
+            #if (block_hash_int % VAL_NUM) == (VAL_NUM - 1):
+            if selected_val == VAL_NUM:
+                SELECTED = True
+                generate_challenge()
+                unicast(msg_json['name'], "dcv challenge", "challenge.txt", "challenge_revocation")
+
     # process a certificate issuance request confirmation, sent by the requestor after uploading the challenge file to their domain controlled website
     elif msg_json['bcaction'] == "issue":
         csr_file = msg_json['filename']
@@ -804,81 +839,150 @@ def blockchain_action(msg_json):
 
         sha256hasher = FileHash('sha256')
 
-        # Get the last block in the blockchain
-        folder_path = './blockchain/*'
-        #file_type = r'\*txt'
-        files = glob.glob(folder_path)
-        latest_block = max(files, key=os.path.getctime)
-        f = open(latest_block, "r")
-        block_data = f.read()
-        f.close()
-        block_json = json.loads(block_data)
-        print("Number of files: {}".format(len(files)))
-        print("Last block number: {}".format(block_json['Block_num']))
-        if len(files) != int(block_json['Block_num']):
-            prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
+        
+        print("Issued domains dict: {}".format(ISSUED_DOMAINS))
+        f_cert = open(cert_file, 'r')
+        cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
+        f_cert.close()
 
-        else:
-            latest_block_hash = sha256hasher.hash_file(latest_block)
-            latest_block_hash_int = int(latest_block_hash, 16)
+        if validate_bc():
+            prGreen("Valid blockchain")
+            if dcv(cert.get_subject().commonName):
+                prGreen("Domain Control Validation successful, revoking certificate...")
+                if cert.get_subject().commonName in ISSUED_DOMAINS.keys():
+                    # Get the last block in the blockchain
+                    folder_path = './blockchain/*'
+                    files = glob.glob(folder_path)
+                    latest_block = max(files, key=os.path.getctime)
+                    latest_block_hash = sha256hasher.hash_file(latest_block)
 
-            prYellow("last block hash: {}".format(latest_block_hash))
-            prYellow("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
+                    #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
+                    backup_domains()
+                    del ISSUED_DOMAINS[cert.get_subject().commonName]
+                    if len(ISSUED_DOMAINS.keys()) < 2:
+                        ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
+                    prGreen("domain deleted from dictionary")
 
-            selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
-            prYellow("Validator{} has been selected to revoke certificate".format(selected_val))
-
-            if selected_val == VAL_NUM:
-                SELECTED = True
-                print("Issued domains dict: {}".format(ISSUED_DOMAINS))
-                f_cert = open(cert_file, 'r')
-                cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
-                f_cert.close()
-
-                if validate_bc():
-                    prGreen("Valid blockchain")
-                    if cert.get_subject().commonName in ISSUED_DOMAINS.keys():
-                        #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
-                        backup_domains()
-                        del ISSUED_DOMAINS[cert.get_subject().commonName]
-                        if len(ISSUED_DOMAINS.keys()) < 2:
-                            ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
-                        prGreen("domain deleted from dictionary")
-
-                        cert_hash = sha256hasher.hash_file(cert_file)
-                        if cert_hash in CERTS_HASH_LIST:
-                            #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
-                            backup_certs()
-                            CERTS_HASH_LIST.remove(cert_hash)
+                    cert_hash = sha256hasher.hash_file(cert_file)
+                    if cert_hash in CERTS_HASH_LIST:
+                        #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
+                        backup_certs()
+                        CERTS_HASH_LIST.remove(cert_hash)
+                
+                        # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
+                        if len(CERTS_HASH_LIST) < 2:
+                            CERTS_HASH_LIST.append(latest_block_hash)
                     
-                            # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
-                            if len(CERTS_HASH_LIST) < 2:
-                                CERTS_HASH_LIST.append(latest_block_hash)
-                    
-                            prGreen("hash list updated successfully")
+                        prGreen("hash list updated successfully")
 
-                            block_hd = block_header("", latest_block)
-                            APPROVE_VOTES += 1
-                            VOTES[NAME] = True
-                            time.sleep(3)
-                            # send the header and certificate to other validators for attestation
-                            msg = []
-                            msg.append(block_hd)
-                            msg.append(cert.get_subject().commonName)
-                            msg.append(cert_hash)
-                            for val in VALIDATORS_LIST:
-                                if val != NAME:
-                                    unicast(val, msg, "", 'attest_revocation')
-                                    time.sleep(1)
-                        else:
-                            prRed("Certificate hash not found on Certificates Hash List")
-                        
+                        block_hd = block_header("", latest_block)
+                        APPROVE_VOTES += 1
+                        VOTES[NAME] = True
+                        time.sleep(3)
+                        # send the header and certificate to other validators for attestation
+                        msg = []
+                        msg.append(block_hd)
+                        msg.append(cert.get_subject().commonName)
+                        msg.append(cert_hash)
+                        msg.append(RAND_LIST)
+                        for val in VALIDATORS_LIST:
+                            if val != NAME:
+                                unicast(val, msg, "", 'attest_revocation')
+                                time.sleep(1)
                     else:
-                        prRed("{} not found on valid domains dictionary".format(requestor_name))
-                    
+                        prRed("Certificate hash not found on Certificates Hash List")
+                        
                 else:
-                    prRed("Invalid blockchain, hashes don't match")
+                    prRed("{} not found on valid domains dictionary".format(requestor_name))
+            else:
+                prRed("DCV failed")        
+        else:
+            prRed("Invalid blockchain, hashes don't match")
 
+    
+    ## process a certificate revocation request 
+    #elif msg_json['bcaction'] == "revoke":
+    #    ### insert call to DCV
+    #    requestor_name = msg_json['name']
+    #    cert_file = msg_json['filename']
+    #
+    #    sha256hasher = FileHash('sha256')
+    #
+    #    # Get the last block in the blockchain
+    #    folder_path = './blockchain/*'
+    #    #file_type = r'\*txt'
+    #    files = glob.glob(folder_path)
+    #    latest_block = max(files, key=os.path.getctime)
+    #    f = open(latest_block, "r")
+    #    block_data = f.read()
+    #    f.close()
+    #    block_json = json.loads(block_data)
+    #    print("Number of files: {}".format(len(files)))
+    #    print("Last block number: {}".format(block_json['Block_num']))
+    #    if len(files) != int(block_json['Block_num']):
+    #        prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
+    #
+    #    else:
+    #        latest_block_hash = sha256hasher.hash_file(latest_block)
+    #        latest_block_hash_int = int(latest_block_hash, 16)
+    #
+    #        prYellow("last block hash: {}".format(latest_block_hash))
+    #        prYellow("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
+    #
+    #        selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
+    #        prYellow("Validator{} has been selected to revoke certificate".format(selected_val))
+    #
+    #        if selected_val == VAL_NUM:
+    #            SELECTED = True
+    #            print("Issued domains dict: {}".format(ISSUED_DOMAINS))
+    #            f_cert = open(cert_file, 'r')
+    #            cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
+    #            f_cert.close()
+    #
+    #            if validate_bc():
+    #                prGreen("Valid blockchain")
+    #                if cert.get_subject().commonName in ISSUED_DOMAINS.keys():
+    #                    #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
+    #                    backup_domains()
+    #                    del ISSUED_DOMAINS[cert.get_subject().commonName]
+    #                    if len(ISSUED_DOMAINS.keys()) < 2:
+    #                        ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
+    #                    prGreen("domain deleted from dictionary")
+    #
+    #                    cert_hash = sha256hasher.hash_file(cert_file)
+    #                    if cert_hash in CERTS_HASH_LIST:
+    #                        #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
+    #                        backup_certs()
+    #                        CERTS_HASH_LIST.remove(cert_hash)
+    #                
+    #                        # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
+    #                        if len(CERTS_HASH_LIST) < 2:
+    #                            CERTS_HASH_LIST.append(latest_block_hash)
+    #                
+    #                        prGreen("hash list updated successfully")
+    #
+    #                        block_hd = block_header("", latest_block)
+    #                        APPROVE_VOTES += 1
+    #                        VOTES[NAME] = True
+    #                        time.sleep(3)
+    #                        # send the header and certificate to other validators for attestation
+    #                        msg = []
+    #                        msg.append(block_hd)
+    #                        msg.append(cert.get_subject().commonName)
+    #                        msg.append(cert_hash)
+    #                        for val in VALIDATORS_LIST:
+    #                            if val != NAME:
+    #                                unicast(val, msg, "", 'attest_revocation')
+    #                                time.sleep(1)
+    #                    else:
+    #                        prRed("Certificate hash not found on Certificates Hash List")
+    #                    
+    #                else:
+    #                    prRed("{} not found on valid domains dictionary".format(requestor_name))
+    #                
+    #            else:
+    #                prRed("Invalid blockchain, hashes don't match")
+    
     # restore changes
     elif msg_json['bcaction'] == "abort":
         restore_certs()
@@ -895,6 +999,12 @@ def blockchain_action(msg_json):
         original_header_timestamp = hdr['Timestamp']
         domain = msg_json['message'][1]
         cert_hash = msg_json['message'][2]
+        rnd_list = msg_json['message'][3]
+
+        f = open("challenge.txt", "w")
+        for r in rnd_list:
+            f.write(str(r) + "\n")
+        f.close()
 
         sha256hasher = FileHash('sha256')
 
@@ -905,28 +1015,32 @@ def blockchain_action(msg_json):
         latest_block = max(files, key=os.path.getctime)
         latest_block_hash = sha256hasher.hash_file(latest_block)
 
-        if domain in ISSUED_DOMAINS.keys():
-            #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
-            backup_domains()
+        if dcv(domain):
+            if domain in ISSUED_DOMAINS.keys():
+                #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
+                backup_domains()
 
-            del ISSUED_DOMAINS[domain]
-            if len(ISSUED_DOMAINS.keys()) < 2:
-                ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
-                prGreen("domain deleted from dictionary")
+                del ISSUED_DOMAINS[domain]
+                if len(ISSUED_DOMAINS.keys()) < 2:
+                    ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
+                    prGreen("domain deleted from dictionary")
 
-            #cert_hash = sha256hasher.hash_file(cert_file)
-            if cert_hash in CERTS_HASH_LIST:
-                #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
-                backup_certs()
-                CERTS_HASH_LIST.remove(cert_hash)
-                # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
-                if len(CERTS_HASH_LIST) < 2:
-                    CERTS_HASH_LIST.append(latest_block_hash)
-                prGreen("hash list updated successfully")
+                #cert_hash = sha256hasher.hash_file(cert_file)
+                if cert_hash in CERTS_HASH_LIST:
+                    #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
+                    backup_certs()
+                    CERTS_HASH_LIST.remove(cert_hash)
+                    # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
+                    if len(CERTS_HASH_LIST) < 2:
+                        CERTS_HASH_LIST.append(latest_block_hash)
+                    prGreen("hash list updated successfully")
+                else:
+                    prRed("Certificate hash not found on list")
             else:
-                prRed("Certificate hash not found on list")
+                prRed("Domain not found on issued certificates dictionary")
+
         else:
-            prRed("Domain not found on issued certificates dictionary")
+            prRed("DCV failed")
 
         block_hd = block_header("", latest_block)
         block_hd['Timestamp'] = ''
@@ -1151,8 +1265,8 @@ if __name__ == '__main__':
     block_code_hash = data_json["Validator_Code_Hash"]
 
 
-    #if True:
-    if code_hash == block_code_hash:
+    if True:
+    #if code_hash == block_code_hash:
         prGreen("Smart Contract validated successfully")
         prGreen("Validator code hash: {}".format(code_hash))
         prGreen("Smart contract hash: {}".format(block_code_hash))
