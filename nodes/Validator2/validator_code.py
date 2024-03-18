@@ -450,9 +450,13 @@ def blockchain_action(msg_json):
     global ISSUED_DOMAINS
     global CERTS_HASH_LIST
     global RAND_LIST
+    global START
+    global END
 
     # process a certificate issuance request
     if msg_json['bcaction'] == "req_cert_issuance":
+        START = time.time()
+        st1 = time.time()
         # Get the last block in the blockchain
         folder_path = './blockchain/*'
         #file_type = r'\*txt'
@@ -485,9 +489,13 @@ def blockchain_action(msg_json):
             if selected_val == VAL_NUM:
                 SELECTED = True
                 generate_challenge()
+                end1 = time.time()
+                print("Time for req_cert_issuance: {}".format(end1 - st1))
                 unicast(msg_json['name'], "dcv challenge", "challenge.txt", "challenge")
 
     elif msg_json['bcaction'] == "req_revocation":
+        START = time.time()
+        str1 = time.time()
         # Get the last block in the blockchain
         folder_path = './blockchain/*'
         #file_type = r'\*txt'
@@ -521,9 +529,12 @@ def blockchain_action(msg_json):
                 SELECTED = True
                 generate_challenge()
                 unicast(msg_json['name'], "dcv challenge", "challenge.txt", "challenge_revocation")
+                endr1 = time.time()
+                print("Time for req_revocation: {}".format(endr1 - str1))
 
     # process a certificate issuance request confirmation, sent by the requestor after uploading the challenge file to their domain controlled website
     elif msg_json['bcaction'] == "issue":
+        st2 = time.time()
         csr_file = msg_json['filename']
         requestor_name = msg_json['name']
 
@@ -558,6 +569,9 @@ def blockchain_action(msg_json):
 
                         APPROVE_VOTES += 1
                         VOTES[NAME] = True
+
+                        end2 = time.time()
+                        print("Time for issue: {}".format(end2 - st2))
                         time.sleep(3)
 
                         # send the header and certificate to other validators for attestation
@@ -580,6 +594,7 @@ def blockchain_action(msg_json):
     
     # process a "send your certificate" request
     elif msg_json['bcaction'] == "req_cert":
+        st6 = time.time()
         genesis_block = './blockchain/block1.json'
         f = open(genesis_block, "r")
         gen_block_data = f.read()
@@ -587,6 +602,8 @@ def blockchain_action(msg_json):
         gen_block_json = json.loads(gen_block_data)
 
         unicast(msg_json['name'], gen_block_json, NAME + '.crt', 'add_key')
+        end6 = time.time()
+        print("Time for req_cert: {}".format(end6 - st6))
 
     # process the received (other node's) certificate
     elif msg_json['bcaction'] == "add_key":
@@ -610,6 +627,7 @@ def blockchain_action(msg_json):
     # perform attestation of a new certificate and new proposed block
     elif msg_json['bcaction'] == "attest":
         # Validate new certificate
+        st3 = time.time()
         vote = False
         VOTES[NAME] = False
         VOTES[msg_json['name']] = True
@@ -724,6 +742,9 @@ def blockchain_action(msg_json):
             prRed(error)
         
         msg = [vote, block_recvd, requestor_name]
+
+        end3 = time.time()
+        print("Time for attest: {}".format(end3 - st3))
         time.sleep(3)
         for val in VALIDATORS_LIST:
             if val != NAME:
@@ -732,6 +753,7 @@ def blockchain_action(msg_json):
 
     # process votes from the other validators in the blockchain
     elif msg_json['bcaction'] == "vote":
+        st4 = time.time()
         vote = msg_json['message'][0]
         header = msg_json['message'][1]
         requestor = msg_json['message'][2]
@@ -764,14 +786,17 @@ def blockchain_action(msg_json):
             APPROVE_VOTES = 0
             VOTES.clear()
             prGreen("Consensus achieved, bock added to blockchain successfully")
+            end4 = time.time()
+            print("Time for vote: {}".format(end4 - st4))
+            END = time.time()
+            print("Overall time for issuance (consensus): {}".format(END - START))
 
             if SELECTED == True:
-                time.sleep(8)
+                time.sleep(10)
                 prYellow("Sending new block to the network")
                 time.sleep(1)
                 broadcast(header, "","recv_block")
                 SELECTED = False
-           
 
         else:
             
@@ -797,7 +822,10 @@ def blockchain_action(msg_json):
 
     # process request to send the issued certificate
     elif msg_json['bcaction'] == "issued_cert":
+        st5 = time.time()
         unicast(msg_json['name'], "Sending issued certificate", msg_json['name'] + ".crt","recv_cert")
+        end5 = time.time()
+        print("Time for issued_cert: {}".format(end5 - st5))
 
     # receive confirmation of the validity of the certificate
     elif msg_json['bcaction'] == "confirm_cert":
@@ -816,6 +844,7 @@ def blockchain_action(msg_json):
 
     # process request to generate a Merkle proof for a certificate (validate blockchain membership)
     elif msg_json['bcaction'] == "req_Merkle":
+        st7 = time.time()
         Merkle_proof = []
         cert_hash = msg_json["message"][0]
         owner = msg_json["message"][1]
@@ -830,10 +859,15 @@ def blockchain_action(msg_json):
         Merkle_proof.append(owner)
         time.sleep(1)
         unicast(msg_json["name"], Merkle_proof, "", "recv_proof")
+        end7 = time.time()
+        print("Time for req_Merkle: {}".format(end7 - st7))
+        END = time.time()
+        print("Overall time for issuance (send Merkle proof): {}".format(END - START))
 
     # process a certificate revocation request 
     elif msg_json['bcaction'] == "revoke":
         ### insert call to DCV
+        str2 = time.time()
         requestor_name = msg_json['name']
         cert_file = msg_json['filename']
 
@@ -878,6 +912,8 @@ def blockchain_action(msg_json):
                         block_hd = block_header("", latest_block)
                         APPROVE_VOTES += 1
                         VOTES[NAME] = True
+                        endr2 = time.time()
+                        print("Time for revoke: {}".format(endr2 - str2))
                         time.sleep(3)
                         # send the header and certificate to other validators for attestation
                         msg = []
@@ -900,88 +936,7 @@ def blockchain_action(msg_json):
             prRed("Invalid blockchain, hashes don't match")
 
     
-    ## process a certificate revocation request 
-    #elif msg_json['bcaction'] == "revoke":
-    #    ### insert call to DCV
-    #    requestor_name = msg_json['name']
-    #    cert_file = msg_json['filename']
-    #
-    #    sha256hasher = FileHash('sha256')
-    #
-    #    # Get the last block in the blockchain
-    #    folder_path = './blockchain/*'
-    #    #file_type = r'\*txt'
-    #    files = glob.glob(folder_path)
-    #    latest_block = max(files, key=os.path.getctime)
-    #    f = open(latest_block, "r")
-    #    block_data = f.read()
-    #    f.close()
-    #    block_json = json.loads(block_data)
-    #    print("Number of files: {}".format(len(files)))
-    #    print("Last block number: {}".format(block_json['Block_num']))
-    #    if len(files) != int(block_json['Block_num']):
-    #        prRed("Blockchain tampered, Block {} was modified".format(block_json['Block_num']))
-    #
-    #    else:
-    #        latest_block_hash = sha256hasher.hash_file(latest_block)
-    #        latest_block_hash_int = int(latest_block_hash, 16)
-    #
-    #        prYellow("last block hash: {}".format(latest_block_hash))
-    #        prYellow("hash % {}: {}".format(len(VALIDATORS_LIST), latest_block_hash_int % len(VALIDATORS_LIST)))
-    #
-    #        selected_val = (latest_block_hash_int % len(VALIDATORS_LIST)) + 1
-    #        prYellow("Validator{} has been selected to revoke certificate".format(selected_val))
-    #
-    #        if selected_val == VAL_NUM:
-    #            SELECTED = True
-    #            print("Issued domains dict: {}".format(ISSUED_DOMAINS))
-    #            f_cert = open(cert_file, 'r')
-    #            cert = crypto.load_certificate(crypto.FILETYPE_PEM, f_cert.read())
-    #            f_cert.close()
-    #
-    #            if validate_bc():
-    #                prGreen("Valid blockchain")
-    #                if cert.get_subject().commonName in ISSUED_DOMAINS.keys():
-    #                    #PREV_ISSUED_DOMAINS = ISSUED_DOMAINS
-    #                    backup_domains()
-    #                    del ISSUED_DOMAINS[cert.get_subject().commonName]
-    #                    if len(ISSUED_DOMAINS.keys()) < 2:
-    #                        ISSUED_DOMAINS.update({"Genesis2": hashlib.sha256("Genesis2".encode()).hexdigest()})
-    #                    prGreen("domain deleted from dictionary")
-    #
-    #                    cert_hash = sha256hasher.hash_file(cert_file)
-    #                    if cert_hash in CERTS_HASH_LIST:
-    #                        #PREV_CERTS_HASH_LIST = CERTS_HASH_LIST
-    #                        backup_certs()
-    #                        CERTS_HASH_LIST.remove(cert_hash)
-    #                
-    #                        # need at least 2 elements in list to build the merkle tree, if list is empty, add the latest block hash as the first hash in list
-    #                        if len(CERTS_HASH_LIST) < 2:
-    #                            CERTS_HASH_LIST.append(latest_block_hash)
-    #                
-    #                        prGreen("hash list updated successfully")
-    #
-    #                        block_hd = block_header("", latest_block)
-    #                        APPROVE_VOTES += 1
-    #                        VOTES[NAME] = True
-    #                        time.sleep(3)
-    #                        # send the header and certificate to other validators for attestation
-    #                        msg = []
-    #                        msg.append(block_hd)
-    #                        msg.append(cert.get_subject().commonName)
-    #                        msg.append(cert_hash)
-    #                        for val in VALIDATORS_LIST:
-    #                            if val != NAME:
-    #                                unicast(val, msg, "", 'attest_revocation')
-    #                                time.sleep(1)
-    #                    else:
-    #                        prRed("Certificate hash not found on Certificates Hash List")
-    #                    
-    #                else:
-    #                    prRed("{} not found on valid domains dictionary".format(requestor_name))
-    #                
-    #            else:
-    #                prRed("Invalid blockchain, hashes don't match")
+
     
     # restore changes
     elif msg_json['bcaction'] == "abort":
@@ -991,6 +946,7 @@ def blockchain_action(msg_json):
     
     # attest on the revocation of a certificate
     elif msg_json['bcaction'] == "attest_revocation":
+        str3 = time.time()
         vote = False
         VOTES[NAME] = False
         VOTES[msg_json['name']] = True
@@ -1066,6 +1022,8 @@ def blockchain_action(msg_json):
         else:
             prRed("Invalid blockchain, hashes don't match")
 
+        endr3 = time.time()
+        print("Time for attest revocation: {}".format(endr3 - str3))
         msg = [vote, block_recvd, ""]
         time.sleep(3)
         for val in VALIDATORS_LIST:
@@ -1171,7 +1129,6 @@ def block_header(requestor_name, latest_block):
 	    "Timestamp": "",
 	    "Previous_block_hash": "",
 	    "Certificates_Merkle_root": "",
-	    "Transactions_Merkle_root": "",
     	"Validator_Merkle_root": "",
 	    "Issued_domains_Merkle_root": "",
 	    "Current_Cert_Merkle_proof": "",
@@ -1250,6 +1207,8 @@ if __name__ == '__main__':
     APPROVE_VOTES = 0
     SELECTED = False
     RAND_LIST = []
+    START = 0.0
+    END = 0.0
     
     warnings.filterwarnings("ignore", category=DeprecationWarning)
 
@@ -1265,8 +1224,8 @@ if __name__ == '__main__':
     block_code_hash = data_json["Validator_Code_Hash"]
 
 
-    if True:
-    #if code_hash == block_code_hash:
+    #if True:
+    if code_hash == block_code_hash:
         prGreen("Smart Contract validated successfully")
         prGreen("Validator code hash: {}".format(code_hash))
         prGreen("Smart contract hash: {}".format(block_code_hash))

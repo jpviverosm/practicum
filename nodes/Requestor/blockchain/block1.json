@@ -3,12 +3,11 @@
     "Timestamp": "",
     "Previous_block_hash": "",
     "Certificates_Merkle_root": "",
-    "Transactions_Merkle_root": "",
     "Validator_Merkle_root": "",
     "Issued_domains_Merkle_root": "",
     "Current_Cert_Merkle_proof": "",
     "Current_Cert_Hash": "",
-    "Validator_Code_Hash": "7ec20051b9282ffaf529f408918b40e85eab513c333b86c23b6e6351c1ed245c",
+    "Validator_Code_Hash": "d2d928e9fdb91ec7b759e9efebf8a5efb2308f77be27937d3967af9c87842f7a",
     "Requestor_Code_Hash": "9cf7eef5839e680c2d2230650d7baf48c083a593094036f1016826fe03d2aa4e",
     "Client_Code_Hash": "b3274a2c47ae40ac6152f52b940d7800057ad0dc8879f67ae37b90998c12faab"
 }
